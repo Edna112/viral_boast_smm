@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('task_url');
             $table->integer('user_id')->nullable();
             $table->integer('membership_id')->nullable();
-            $table->integer('status')->default('pending');
+            $table->string('status')->default('pending');
             $table->timestamp('duration');
             $table->timestamps();
         });

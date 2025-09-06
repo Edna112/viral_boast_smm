@@ -22,8 +22,8 @@ class AuthController extends Controller
         // Validate incoming registration data - either email or phone is required
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
-            'phone' => ['nullable', 'string', 'max:32', Rule::unique('users', 'phone')],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:32'],
             'password' => ['required', 'string', 'min:8'],
             'referralCode' => ['nullable', 'string', 'max:10'],
         ]);

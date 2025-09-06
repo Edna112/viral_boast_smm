@@ -19,6 +19,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/auth/validate-reset-token', [AuthController::class, 'validateResetToken']);
     Route::post('/auth/reset-password', [AuthController::class, 'reset']);
     
+    // Password reset route for Laravel's built-in password reset
+    Route::get('/password/reset/{token}', function () {
+        return response()->json(['message' => 'Password reset page']);
+    })->name('password.reset');
+    
     // Protected auth endpoints
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
