@@ -22,8 +22,8 @@ class AuthController extends Controller
         // Validate incoming registration data - either email or phone is required
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:32'],
+            'email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
+            'phone' => ['nullable', 'string', 'max:32', Rule::unique('users', 'phone')],
             'password' => ['required', 'string', 'min:8'],
             'referralCode' => ['nullable', 'string', 'max:10'],
         ]);
@@ -152,6 +152,7 @@ class AuthController extends Controller
 
     /**
      * Verify the 6-digit code for email or phone and mark as verified.
+     * Production-ready with enhanced security and rate limiting.
      */
     public function verify(Request $request)
     {
@@ -159,7 +160,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'email' => ['nullable', 'email'],
             'phone' => ['nullable', 'string'],
-            'code' => ['required', 'string'],
+            'code' => ['required', 'string', 'size:6', 'regex:/^[0-9]{6}$/'],
         ]);
 
         // Ensure either email or phone is provided
@@ -182,7 +183,8 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'User not found'
+                'message' => 'User not found',
+                'error' => 'UserNotFound'
             ], 404);
         }
 
@@ -193,15 +195,36 @@ class AuthController extends Controller
         if ($isEmailVerification && $user->email_verified_at) {
             return response()->json([
                 'success' => true,
-                'message' => 'Email already verified'
+                'message' => 'Email already verified',
+                'data' => [
+                    'email' => $user->email,
+                    'verified_at' => $user->email_verified_at
+                ]
             ], 200);
         }
 
         if ($isPhoneVerification && $user->phone_verified_at) {
             return response()->json([
                 'success' => true,
-                'message' => 'Phone already verified'
+                'message' => 'Phone already verified',
+                'data' => [
+                    'phone' => $user->phone,
+                    'verified_at' => $user->phone_verified_at
+                ]
             ], 200);
+        }
+
+        // Check for rate limiting (max 5 attempts per 15 minutes)
+        $attemptsKey = 'verification_attempts_' . ($isEmailVerification ? $user->email : $user->phone);
+        $attempts = cache()->get($attemptsKey, 0);
+        
+        if ($attempts >= 5) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many verification attempts. Please try again later.',
+                'error' => 'RateLimitExceeded',
+                'retry_after_minutes' => 15
+            ], 429);
         }
 
         // Validate code and its expiration
@@ -238,25 +261,50 @@ class AuthController extends Controller
             }
         }
 
+        // Increment attempts counter
+        cache()->put($attemptsKey, $attempts + 1, 900); // 15 minutes
+
         if (!$isValidCode) {
+            $remainingAttempts = 5 - ($attempts + 1);
+            $message = 'Invalid or expired verification code';
+            
+            if ($remainingAttempts > 0) {
+                $message .= ". {$remainingAttempts} attempts remaining.";
+            } else {
+                $message .= ". No attempts remaining. Please request a new code.";
+            }
+
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid or expired code'
+                'message' => $message,
+                'error' => 'InvalidCode',
+                'remaining_attempts' => max(0, $remainingAttempts)
             ], 422);
         }
+
+        // Clear attempts counter on successful verification
+        cache()->forget($attemptsKey);
 
         // Mark as verified and clear code fields
         $user->forceFill($updateData)->save();
 
         $verificationType = $isEmailVerification ? 'Email' : 'Phone';
+        $verifiedField = $isEmailVerification ? 'email' : 'phone';
+        
         return response()->json([
             'success' => true,
-            'message' => "{$verificationType} verified successfully"
-        ]);
+            'message' => "{$verificationType} verified successfully",
+            'data' => [
+                $verifiedField => $user->$verifiedField,
+                'verified_at' => $updateData[$verifiedField . '_verified_at'],
+                'user_id' => $user->id
+            ]
+        ], 200);
     }
 
     /**
      * Resend verification code for email or phone if previous one expired.
+     * Production-ready with rate limiting and enhanced security.
      */
     public function resendVerification(Request $request)
     {
@@ -286,7 +334,8 @@ class AuthController extends Controller
         if (!$user) {
             return response()->json([
                 'success' => false,
-                'message' => 'User not found'
+                'message' => 'User not found',
+                'error' => 'UserNotFound'
             ], 404);
         }
 
@@ -297,15 +346,36 @@ class AuthController extends Controller
         if ($isEmailVerification && $user->email_verified_at) {
             return response()->json([
                 'success' => true,
-                'message' => 'Email already verified'
+                'message' => 'Email already verified',
+                'data' => [
+                    'email' => $user->email,
+                    'verified_at' => $user->email_verified_at
+                ]
             ], 200);
         }
 
         if ($isPhoneVerification && $user->phone_verified_at) {
             return response()->json([
                 'success' => true,
-                'message' => 'Phone already verified'
+                'message' => 'Phone already verified',
+                'data' => [
+                    'phone' => $user->phone,
+                    'verified_at' => $user->phone_verified_at
+                ]
             ], 200);
+        }
+
+        // Rate limiting for resend requests (max 3 requests per 15 minutes)
+        $resendKey = 'resend_attempts_' . ($isEmailVerification ? $user->email : $user->phone);
+        $resendAttempts = cache()->get($resendKey, 0);
+        
+        if ($resendAttempts >= 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Too many resend requests. Please try again later.',
+                'error' => 'ResendRateLimitExceeded',
+                'retry_after_minutes' => 15
+            ], 429);
         }
 
         // Check if there's an active, unexpired code
@@ -316,9 +386,13 @@ class AuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Please wait before requesting a new code',
+                'error' => 'CodeStillActive',
                 'retry_after_seconds' => max($remaining, 0),
             ], 429);
         }
+
+        // Increment resend attempts counter
+        cache()->put($resendKey, $resendAttempts + 1, 900); // 15 minutes
 
         // Generate new code with a new 15-minute expiration
         $verificationCode = random_int(100000, 999999);
@@ -327,12 +401,12 @@ class AuthController extends Controller
         if ($isEmailVerification) {
             $updateData = [
                 'email_verification_code' => (string) $verificationCode,
-                'email_verification_expires_at' => Carbon::now()->addMinutes(2),
+                'email_verification_expires_at' => Carbon::now()->addMinutes(15),
             ];
         } else {
             $updateData = [
                 'phone_verification_code' => (string) $verificationCode,
-                'phone_verification_expires_at' => Carbon::now()->addMinutes(2),
+                'phone_verification_expires_at' => Carbon::now()->addMinutes(15),
             ];
         }
 
@@ -345,19 +419,27 @@ class AuthController extends Controller
                     ->subject('Your Verification Code');
             });
             $message = 'A new verification code has been sent to your email.';
+            $contactInfo = $user->email;
         } else {
             $this->sendSMS($user->phone, "Your verification code is: {$verificationCode}");
             $message = 'A new verification code has been sent to your phone.';
+            $contactInfo = $user->phone;
         }
 
         return response()->json([
             'success' => true,
-            'message' => $message
-        ]);
+            'message' => $message,
+            'data' => [
+                'contact_info' => $contactInfo,
+                'expires_in_minutes' => 15,
+                'resend_attempts_remaining' => max(0, 3 - ($resendAttempts + 1))
+            ]
+        ], 200);
     }
 
     /**
      * Login with email or phone and password, return Sanctum token and user profile.
+     * Production-ready with email verification requirement.
      */
     public function login(Request $request)
     {
@@ -388,8 +470,35 @@ class AuthController extends Controller
         if (!$user || !Hash::check($data['password'], $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid credentials'
+                'message' => 'Invalid credentials',
+                'error' => 'InvalidCredentials'
             ], 401);
+        }
+
+        // Check if email is verified (required for login)
+        if (!empty($data['email']) && !$user->email_verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please verify your email before logging in.',
+                'error' => 'EmailNotVerified',
+                'data' => [
+                    'email' => $user->email,
+                    'verification_required' => true
+                ]
+            ], 403);
+        }
+
+        // Check if phone is verified (if using phone login)
+        if (!empty($data['phone']) && !$user->phone_verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please verify your phone number before logging in.',
+                'error' => 'PhoneNotVerified',
+                'data' => [
+                    'phone' => $user->phone,
+                    'verification_required' => true
+                ]
+            ], 403);
         }
 
         // Create API token for the session
@@ -398,6 +507,7 @@ class AuthController extends Controller
         // Respond with token and basic user info
         return response()->json([
             'success' => true,
+            'message' => 'Login successful',
             'token' => $token,
             'user' => [
                 'id' => $user->id,
@@ -408,6 +518,61 @@ class AuthController extends Controller
                 'emailVerified' => !is_null($user->email_verified_at),
                 'phoneVerified' => !is_null($user->phone_verified_at),
             ],
+        ]);
+    }
+
+    /**
+     * Get current verification code for testing purposes (Development only).
+     * This endpoint should be removed or protected in production.
+     */
+    public function getVerificationCode(Request $request)
+    {
+        // Only allow in development environment
+        if (app()->environment('production')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This endpoint is not available in production'
+            ], 404);
+        }
+
+        $data = $request->validate([
+            'email' => ['nullable', 'email'],
+            'phone' => ['nullable', 'string'],
+        ]);
+
+        if (empty($data['email']) && empty($data['phone'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Either email or phone number is required.'
+            ], 400);
+        }
+
+        $user = null;
+        if (!empty($data['email'])) {
+            $user = User::where('email', $data['email'])->first();
+        } else {
+            $user = User::where('phone', $data['phone'])->first();
+        }
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        $isEmailVerification = !empty($data['email']);
+        $codeField = $isEmailVerification ? 'email_verification_code' : 'phone_verification_code';
+        $expiresField = $isEmailVerification ? 'email_verification_expires_at' : 'phone_verification_expires_at';
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'code' => $user->$codeField,
+                'expires_at' => $user->$expiresField,
+                'is_expired' => $user->$expiresField ? Carbon::now()->greaterThan($user->$expiresField) : true,
+                'contact_info' => $isEmailVerification ? $user->email : $user->phone
+            ]
         ]);
     }
 
