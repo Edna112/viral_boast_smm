@@ -93,13 +93,13 @@ class AuthController extends Controller
         if (!empty($data['email'])) {
             $userData['email'] = $data['email'];
             $userData['email_verification_code'] = (string) $verificationCode;
-            $userData['email_verification_expires_at'] = Carbon::now()->addMinutes(15);
+            $userData['email_verification_expires_at'] = Carbon::now()->addMinutes(2);
         }
 
         if (!empty($data['phone'])) {
             $userData['phone'] = $data['phone'];
             $userData['phone_verification_code'] = (string) $verificationCode;
-            $userData['phone_verification_expires_at'] = Carbon::now()->addMinutes(15);
+            $userData['phone_verification_expires_at'] = Carbon::now()->addMinutes(2);
         }
 
         $user = User::create($userData);
@@ -118,15 +118,25 @@ class AuthController extends Controller
 
         // 8. Send verification code
         if (!empty($data['email'])) {
-            // Send verification code via email
-            Mail::raw("Your verification code is: {$verificationCode}", function ($message) use ($user) {
+            // Send verification code via email using Mailgun
+            $emailContent = "
+                <h2>Welcome to Viral Boast SMM!</h2>
+                <p>Hello {$user->name},</p>
+                <p>Your verification code is: <strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
+                <p>This code will expire in 2 minutes.</p>
+                <p>If you didn't request this code, please ignore this email.</p>
+                <br>
+                <p>Best regards,<br>Viral Boast SMM Team</p>
+            ";
+            
+            Mail::html($emailContent, function ($message) use ($user) {
                 $message->to($user->email)
-                    ->subject('Your Verification Code');
+                    ->subject('Your Verification Code - Viral Boast SMM');
             });
             $verificationMessage = 'Please check your email to verify your account.';
         } else {
-            // Send verification code via SMS (placeholder - implement SMS service)
-            $this->sendSMS($user->phone, "Your verification code is: {$verificationCode}");
+            // Send verification code via SMS using Twilio
+            $this->sendSMS($user->phone, "Your verification code is: {$verificationCode}. This code will expire in 2 minutes.");
             $verificationMessage = 'Please check your phone for the verification code.';
         }
 
@@ -392,21 +402,21 @@ class AuthController extends Controller
         }
 
         // Increment resend attempts counter
-        cache()->put($resendKey, $resendAttempts + 1, 900); // 15 minutes
+        cache()->put($resendKey, $resendAttempts + 1, 120); // 2 minutes
 
-        // Generate new code with a new 15-minute expiration
+        // Generate new code with a new 2-minute expiration
         $verificationCode = random_int(100000, 999999);
         $updateData = [];
 
         if ($isEmailVerification) {
             $updateData = [
                 'email_verification_code' => (string) $verificationCode,
-                'email_verification_expires_at' => Carbon::now()->addMinutes(15),
+                'email_verification_expires_at' => Carbon::now()->addMinutes(2),
             ];
         } else {
             $updateData = [
                 'phone_verification_code' => (string) $verificationCode,
-                'phone_verification_expires_at' => Carbon::now()->addMinutes(15),
+                'phone_verification_expires_at' => Carbon::now()->addMinutes(2),
             ];
         }
 
@@ -414,14 +424,24 @@ class AuthController extends Controller
 
         // Send the new verification code
         if ($isEmailVerification) {
-            Mail::raw("Your verification code is: {$verificationCode}", function ($message) use ($user) {
+            $emailContent = "
+                <h2>New Verification Code</h2>
+                <p>Hello {$user->name},</p>
+                <p>Your new verification code is: <strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
+                <p>This code will expire in 2 minutes.</p>
+                <p>If you didn't request this code, please ignore this email.</p>
+                <br>
+                <p>Best regards,<br>Viral Boast SMM Team</p>
+            ";
+            
+            Mail::html($emailContent, function ($message) use ($user) {
                 $message->to($user->email)
-                    ->subject('Your Verification Code');
+                    ->subject('New Verification Code - Viral Boast SMM');
             });
             $message = 'A new verification code has been sent to your email.';
             $contactInfo = $user->email;
         } else {
-            $this->sendSMS($user->phone, "Your verification code is: {$verificationCode}");
+            $this->sendSMS($user->phone, "Your verification code is: {$verificationCode}. This code will expire in 2 minutes.");
             $message = 'A new verification code has been sent to your phone.';
             $contactInfo = $user->phone;
         }
@@ -431,7 +451,7 @@ class AuthController extends Controller
             'message' => $message,
             'data' => [
                 'contact_info' => $contactInfo,
-                'expires_in_minutes' => 15,
+                'expires_in_minutes' => 2,
                 'resend_attempts_remaining' => max(0, 3 - ($resendAttempts + 1))
             ]
         ], 200);
@@ -788,13 +808,32 @@ class AuthController extends Controller
      */
     private function sendSMS(string $phone, string $message): void
     {
-        // TODO: Implement actual SMS service integration
-        // For now, just log the SMS (in production, integrate with services like Twilio, AWS SNS, etc.)
-        \Log::info("SMS to {$phone}: {$message}");
-        
-        // Example integration with Twilio:
-        // $twilio = new \Twilio\Rest\Client(config('services.twilio.sid'), config('services.twilio.token'));
-        // $twilio->messages->create($phone, ['from' => config('services.twilio.from'), 'body' => $message]);
+        try {
+            // Check if Twilio is configured
+            $twilioSid = config('services.twilio.sid');
+            $twilioToken = config('services.twilio.token');
+            $twilioFrom = config('services.twilio.from');
+            
+            if (empty($twilioSid) || empty($twilioToken) || empty($twilioFrom)) {
+                // Fallback to logging if Twilio is not configured
+                \Log::info("SMS to {$phone}: {$message} (Twilio not configured)");
+                return;
+            }
+            
+            // Send SMS using Twilio
+            $twilio = new \Twilio\Rest\Client($twilioSid, $twilioToken);
+            $twilio->messages->create($phone, [
+                'from' => $twilioFrom,
+                'body' => $message
+            ]);
+            
+            \Log::info("SMS sent successfully to {$phone}");
+            
+        } catch (\Exception $e) {
+            // Log error and fallback to logging the SMS
+            \Log::error("Failed to send SMS to {$phone}: " . $e->getMessage());
+            \Log::info("SMS to {$phone}: {$message} (Failed to send via Twilio)");
+        }
     }
 }
 

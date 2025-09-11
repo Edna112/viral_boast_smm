@@ -14,9 +14,9 @@ return new class extends Migration
         Schema::create('task_assignments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('task_id')->constrained()->onDelete('cascade');
-            $table->timestamp('assigned_at');
-            $table->timestamp('expires_at');
+            $table->foreignId('task_id')->constrained('task')->onDelete('cascade');
+            $table->timestamp('assigned_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
             $table->enum('status', ['pending', 'completed', 'expired'])->default('pending');
             $table->string('completion_photo_url')->nullable();
             $table->timestamp('completed_at')->nullable();

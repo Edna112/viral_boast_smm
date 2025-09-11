@@ -8,26 +8,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Task extends Model
 {
+    protected $table = 'task';
+    
     protected $fillable = [
-        'title',
-        'description',
-        'category_id',
+        'task_name',
         'task_type',
-        'platform',
-        'instructions',
-        'target_url',
-        'requirements',
-        'base_points',
-        'estimated_duration_minutes',
-        'requires_photo',
-        'is_active',
-        'sort_order'
+        'task_url',
+        'user_id',
+        'membership_id',
+        'status',
+        'duration'
     ];
 
     protected $casts = [
-        'requirements' => 'array',
-        'requires_photo' => 'boolean',
-        'is_active' => 'boolean'
+        'duration' => 'datetime'
     ];
 
     /**
@@ -67,7 +61,7 @@ class Task extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('is_active', true);
+        return $query->where('status', 'active');
     }
 
     /**

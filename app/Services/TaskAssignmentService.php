@@ -25,10 +25,10 @@ class TaskAssignmentService
 
         try {
             // Get all active users with their active memberships
-            $users = User::with(['activeMembership.membership'])
+            $users = User::with(['activeMembership'])
                         ->whereHas('memberships', function($query) {
-                            $query->wherePivot('is_active', true)
-                                  ->wherePivot('expires_at', '>', now());
+                            $query->where('user_memberships.is_active', true)
+                                  ->where('user_memberships.expires_at', '>', now());
                         })
                         ->get();
 
@@ -69,13 +69,13 @@ class TaskAssignmentService
      */
     public function assignTasksToUser(User $user, $availableTasks): int
     {
-        $activeMembership = $user->activeMembership;
+        $activeMembership = $user->activeMembership->first();
         
         if (!$activeMembership) {
             throw new \Exception('User has no active membership');
         }
 
-        $membership = $activeMembership->membership;
+        $membership = $activeMembership;
         $dailyLimit = $membership->tasks_per_day;
 
         // Check if user already has tasks assigned today
@@ -87,13 +87,15 @@ class TaskAssignmentService
             return 0; // User already has their daily limit
         }
 
-        $tasksToAssign = min($dailyLimit - $existingAssignments, $availableTasks->count());
+        // All users get exactly 1 task daily
+        $tasksToAssign = 1;
         $assignedCount = 0;
 
-        // Assign the same tasks to all users (up to their daily limit)
-        foreach ($availableTasks->take($tasksToAssign) as $task) {
+        // Assign 1 task to each user
+        if ($availableTasks->count() > 0) {
+            $task = $availableTasks->first(); // Get the first available task
             $this->createTaskAssignment($user, $task, $membership);
-            $assignedCount++;
+            $assignedCount = 1;
         }
 
         return $assignedCount;
@@ -104,9 +106,10 @@ class TaskAssignmentService
      */
     private function createTaskAssignment(User $user, Task $task, $membership): TaskAssignment
     {
-        $basePoints = $task->base_points;
-        $vipMultiplier = $membership->reward_multiplier;
-        $finalReward = $task->calculateReward($vipMultiplier);
+        // Use default values since the existing task table doesn't have these columns
+        $basePoints = 10; // Default base points
+        $vipMultiplier = $membership->benefits ?? 1.0; // Use benefits as multiplier
+        $finalReward = (int) round($basePoints * $vipMultiplier);
 
         return TaskAssignment::create([
             'user_id' => $user->id,

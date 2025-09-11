@@ -8,6 +8,8 @@ use Carbon\Carbon;
 
 class TaskAssignment extends Model
 {
+    protected $table = 'task_assignments';
+    
     protected $fillable = [
         'user_id',
         'task_id',

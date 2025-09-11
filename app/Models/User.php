@@ -91,8 +91,7 @@ class User extends Authenticatable
     {
         return $this->memberships()
                     ->wherePivot('is_active', true)
-                    ->wherePivot('expires_at', '>', now())
-                    ->first();
+                    ->wherePivot('expires_at', '>', now());
     }
 
     public function taskAssignments()

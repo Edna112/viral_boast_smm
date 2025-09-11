@@ -36,7 +36,7 @@ class TaskController extends Controller
             'data' => [
                 'tasks' => $tasks,
                 'total_tasks' => count($tasks),
-                'user_membership' => $user->activeMembership?->getDetails(),
+                'user_membership' => $user->activeMembership?->first(),
             ]
         ]);
     }
