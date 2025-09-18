@@ -79,7 +79,7 @@ class TaskAssignmentService
         $dailyLimit = $membership->tasks_per_day;
 
         // Check if user already has tasks assigned today
-        $existingAssignments = TaskAssignment::where('user_id', $user->id)
+        $existingAssignments = TaskAssignment::where('user_uuid', $user->uuid)
                                            ->assignedToday()
                                            ->count();
 
@@ -106,13 +106,13 @@ class TaskAssignmentService
      */
     private function createTaskAssignment(User $user, Task $task, $membership): TaskAssignment
     {
-        // Use default values since the existing task table doesn't have these columns
-        $basePoints = 10; // Default base points
-        $vipMultiplier = $membership->benefits ?? 1.0; // Use benefits as multiplier
+        // Use task's reward as base points for assignment
+        $basePoints = $task->reward ?? 10; // Use task's reward or default to 10
+        $vipMultiplier = $membership->reward_multiplier ?? 1.0; // Use reward_multiplier as multiplier
         $finalReward = (int) round($basePoints * $vipMultiplier);
 
         return TaskAssignment::create([
-            'user_id' => $user->id,
+            'user_uuid' => $user->uuid,
             'task_id' => $task->id,
             'assigned_at' => now(),
             'expires_at' => now()->addDay(),
@@ -174,7 +174,7 @@ class TaskAssignmentService
     public function getUserTasks(User $user): array
     {
         $assignments = TaskAssignment::with('task')
-                                   ->where('user_id', $user->id)
+                                   ->where('user_uuid', $user->uuid)
                                    ->where('status', 'pending')
                                    ->where('expires_at', '>', now())
                                    ->get();

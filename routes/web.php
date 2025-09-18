@@ -7,6 +7,11 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Login route for authentication middleware
+Route::get('/login', function () {
+    return response()->json(['message' => 'Please login to access this resource'], 401);
+})->name('login');
+
 // Web Authentication Routes (JSON responses, session-based auth)
 Route::prefix('auth')->name('auth.')->group(function () {
     // Email-based registration and verification

@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('user_memberships', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('membership_id')->constrained('membership')->onDelete('cascade');
+            $table->unsignedBigInteger('membership_id');
             $table->timestamp('started_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->boolean('is_active')->default(true);

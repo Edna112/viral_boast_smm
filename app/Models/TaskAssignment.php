@@ -8,10 +8,8 @@ use Carbon\Carbon;
 
 class TaskAssignment extends Model
 {
-    protected $table = 'task_assignments';
-    
     protected $fillable = [
-        'user_id',
+        'user_uuid',
         'task_id',
         'assigned_at',
         'expires_at',
@@ -35,7 +33,7 @@ class TaskAssignment extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_uuid', 'uuid');
     }
 
     /**

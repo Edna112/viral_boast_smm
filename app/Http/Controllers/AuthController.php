@@ -307,7 +307,7 @@ class AuthController extends Controller
             'data' => [
                 $verifiedField => $user->$verifiedField,
                 'verified_at' => $updateData[$verifiedField . '_verified_at'],
-                'user_id' => $user->id
+                'user_id' => $user->uuid
             ]
         ], 200);
     }

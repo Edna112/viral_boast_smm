@@ -13,7 +13,6 @@ class Membership extends Model
         'tasks_per_day',
         'max_tasks',
         'task_link',
-        'userid',
         'benefits',
         'price',
         'duration_days',
@@ -21,11 +20,6 @@ class Membership extends Model
         'priority_level',
         'is_active',
     ];
-
-   public function user()
-    {
-        return $this->belongsTo(User::class, 'userid', 'id');
-    }
 
     public function users()
     {

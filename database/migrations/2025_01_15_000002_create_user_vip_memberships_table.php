@@ -13,10 +13,10 @@ return new class extends Migration
     {
         Schema::create('user_vip_memberships', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('vip_membership_id')->constrained()->onDelete('cascade');
-            $table->timestamp('started_at');
-            $table->timestamp('expires_at');
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('vip_membership_id');
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('expires_at')->nullable();
             $table->boolean('is_active')->default(true);
             $table->integer('daily_tasks_completed')->default(0);
             $table->date('last_reset_date')->nullable();

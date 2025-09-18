@@ -49,8 +49,18 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
 
 // Admin endpoints (add admin middleware as needed)
 Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
+    // Task management (specific routes first)
+    Route::get('/tasks/categories', [App\Http\Controllers\Api\TaskController::class, 'getCategories']);
     Route::get('/tasks/available', [App\Http\Controllers\Api\TaskController::class, 'getAvailableTasks']);
     Route::get('/tasks/stats', [App\Http\Controllers\Api\TaskController::class, 'getTaskStats']);
     Route::post('/tasks/assign-daily', [App\Http\Controllers\Api\TaskController::class, 'assignDailyTasks']);
     Route::post('/tasks/reset-daily', [App\Http\Controllers\Api\TaskController::class, 'resetDailyTasks']);
+    Route::post('/tasks/start-scheduler', [App\Http\Controllers\Api\TaskController::class, 'startScheduler']);
+    
+    // Task CRUD operations (parameterized routes last)
+    Route::get('/tasks', [App\Http\Controllers\Api\TaskController::class, 'index']);
+    Route::post('/tasks', [App\Http\Controllers\Api\TaskController::class, 'store']);
+    Route::get('/tasks/{id}', [App\Http\Controllers\Api\TaskController::class, 'show']);
+    Route::put('/tasks/{id}', [App\Http\Controllers\Api\TaskController::class, 'update']);
+    Route::delete('/tasks/{id}', [App\Http\Controllers\Api\TaskController::class, 'destroy']);
 });

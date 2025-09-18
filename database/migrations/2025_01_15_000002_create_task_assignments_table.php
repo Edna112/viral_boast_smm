@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('task_assignments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->foreignId('task_id')->constrained('task')->onDelete('cascade');
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('task_id');
             $table->timestamp('assigned_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->enum('status', ['pending', 'completed', 'expired'])->default('pending');

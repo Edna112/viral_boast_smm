@@ -11,9 +11,6 @@ class TaskCategory extends Model
         'name',
         'slug',
         'description',
-        'base_points',
-        'icon',
-        'color',
         'is_active',
         'sort_order'
     ];

@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('title');
             $table->text('description');
             $table->foreignId('category_id')->constrained('task_categories')->onDelete('cascade');
-            $table->string('task_type')->default('social_media'); // social_media, content_creation, engagement, etc.
+            $table->enum('task_type', ['like', 'follow', 'subscribe', 'comment'])->default('like');
             $table->string('platform')->nullable(); // instagram, facebook, twitter, youtube, etc.
             $table->text('instructions')->nullable();
             $table->string('target_url')->nullable();
@@ -25,7 +25,8 @@ return new class extends Migration
             $table->integer('estimated_duration_minutes')->default(5);
             $table->boolean('requires_photo')->default(true);
             $table->boolean('is_active')->default(true);
-            $table->integer('sort_order')->default(0);
+            $table->integer('sort_order')->default(0);  
+            $table->integer('threshold_value')->default(0); // Minimum threshold for task completion
             $table->timestamps();
         });
     }

@@ -21,13 +21,19 @@ class MembershipController extends Controller
                                ->map(function ($membership) {
                                    return [
                                        'id' => $membership->id,
-                                       'name' => $membership->membership_name,
+                                       'membership_name' => $membership->membership_name,
                                        'description' => $membership->description,
-                                       'price' => $membership->price,
-                                       'reward_multiplier' => $membership->reward_multiplier,
-                                       'daily_task_limit' => $membership->tasks_per_day,
+                                       'tasks_per_day' => $membership->tasks_per_day,
                                        'max_tasks' => $membership->max_tasks,
+                                       'task_link' => $membership->task_link,
+                                       'benefits' => $membership->benefits,
+                                       'price' => $membership->price,
+                                       'duration_days' => $membership->duration_days,
+                                       'reward_multiplier' => $membership->reward_multiplier,
                                        'priority_level' => $membership->priority_level,
+                                       'is_active' => $membership->is_active,
+                                       'created_at' => $membership->created_at,
+                                       'updated_at' => $membership->updated_at,
                                    ];
                                });
 
@@ -72,23 +78,34 @@ class MembershipController extends Controller
                            ->with('membership')
                            ->orderBy('pivot_created_at', 'desc')
                            ->get()
-                           ->map(function ($membership) {
-                               return [
-                                   'id' => $membership->pivot->id,
-                                   'membership' => [
-                                       'id' => $membership->id,
-                                       'name' => $membership->membership_name,
-                                       'description' => $membership->description,
-                                   ],
-                                   'subscription' => [
-                                       'started_at' => $membership->pivot->started_at,
-                                       'expires_at' => $membership->pivot->expires_at,
-                                       'is_active' => $membership->pivot->is_active,
-                                       'remaining_days' => $membership->pivot->expires_at->diffInDays(now()),
-                                   ],
-                                   'purchased_at' => $membership->pivot->created_at,
-                               ];
-                           });
+                               ->map(function ($membership) {
+                                   return [
+                                       'id' => $membership->pivot->id,
+                                       'membership' => [
+                                           'id' => $membership->id,
+                                           'membership_name' => $membership->membership_name,
+                                           'description' => $membership->description,
+                                           'tasks_per_day' => $membership->tasks_per_day,
+                                           'max_tasks' => $membership->max_tasks,
+                                           'task_link' => $membership->task_link,
+                                           'benefits' => $membership->benefits,
+                                           'price' => $membership->price,
+                                           'duration_days' => $membership->duration_days,
+                                           'reward_multiplier' => $membership->reward_multiplier,
+                                           'priority_level' => $membership->priority_level,
+                                           'is_active' => $membership->is_active,
+                                           'created_at' => $membership->created_at,
+                                           'updated_at' => $membership->updated_at,
+                                       ],
+                                       'subscription' => [
+                                           'started_at' => $membership->pivot->started_at,
+                                           'expires_at' => $membership->pivot->expires_at,
+                                           'is_active' => $membership->pivot->is_active,
+                                           'remaining_days' => $membership->pivot->expires_at->diffInDays(now()),
+                                       ],
+                                       'purchased_at' => $membership->pivot->created_at,
+                                   ];
+                               });
 
         return response()->json([
             'success' => true,
@@ -181,14 +198,19 @@ class MembershipController extends Controller
             'success' => true,
             'data' => [
                 'id' => $membership->id,
-                'name' => $membership->membership_name,
+                'membership_name' => $membership->membership_name,
                 'description' => $membership->description,
-                'price' => $membership->price,
-                'reward_multiplier' => $membership->reward_multiplier,
-                'daily_task_limit' => $membership->tasks_per_day,
+                'tasks_per_day' => $membership->tasks_per_day,
                 'max_tasks' => $membership->max_tasks,
-                'priority_level' => $membership->priority_level,
+                'task_link' => $membership->task_link,
                 'benefits' => $membership->benefits,
+                'price' => $membership->price,
+                'duration_days' => $membership->duration_days,
+                'reward_multiplier' => $membership->reward_multiplier,
+                'priority_level' => $membership->priority_level,
+                'is_active' => $membership->is_active,
+                'created_at' => $membership->created_at,
+                'updated_at' => $membership->updated_at,
             ]
         ]);
     }
@@ -204,16 +226,23 @@ class MembershipController extends Controller
                                ->map(function ($membership) {
                                    return [
                                        'id' => $membership->id,
-                                       'name' => $membership->membership_name,
-                                       'price' => $membership->price,
-                                       'reward_multiplier' => $membership->reward_multiplier,
-                                       'daily_task_limit' => $membership->tasks_per_day,
+                                       'membership_name' => $membership->membership_name,
+                                       'description' => $membership->description,
+                                       'tasks_per_day' => $membership->tasks_per_day,
                                        'max_tasks' => $membership->max_tasks,
+                                       'task_link' => $membership->task_link,
+                                       'benefits' => $membership->benefits,
+                                       'price' => $membership->price,
+                                       'duration_days' => $membership->duration_days,
+                                       'reward_multiplier' => $membership->reward_multiplier,
                                        'priority_level' => $membership->priority_level,
+                                       'is_active' => $membership->is_active,
                                        'example_reward' => [
                                            'base_task_points' => 10,
                                            'vip_reward' => 10 * $membership->reward_multiplier,
-                                       ]
+                                       ],
+                                       'created_at' => $membership->created_at,
+                                       'updated_at' => $membership->updated_at,
                                    ];
                                });
 

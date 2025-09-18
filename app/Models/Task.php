@@ -8,20 +8,32 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Task extends Model
 {
-    protected $table = 'task';
-    
     protected $fillable = [
-        'task_name',
+        'title',
+        'description',
+        'category_id',
         'task_type',
-        'task_url',
-        'user_id',
-        'membership_id',
-        'status',
-        'duration'
+        'platform',
+        'instructions',
+        'target_url',
+        'requirements',
+        'reward',
+        'estimated_duration_minutes',
+        'requires_photo',
+        'is_active',
+        'task_status',
+        'sort_order',
+        'threshold_value',
+        'task_completion_count',
+        'category'
     ];
 
     protected $casts = [
-        'duration' => 'datetime'
+        'requirements' => 'array',
+        'requires_photo' => 'boolean',
+        'is_active' => 'boolean',
+        'reward' => 'decimal:2',
+        'task_completion_count' => 'integer'
     ];
 
     /**
@@ -61,7 +73,7 @@ class Task extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('is_active', true);
     }
 
     /**
@@ -97,11 +109,19 @@ class Task extends Model
     }
 
     /**
+     * Scope by task status
+     */
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('task_status', $status);
+    }
+
+    /**
      * Calculate reward for a specific VIP level
      */
-    public function calculateReward($vipMultiplier): int
+    public function calculateReward($vipMultiplier): float
     {
-        return (int) round($this->base_points * $vipMultiplier);
+        return round($this->reward * $vipMultiplier, 2);
     }
 
     /**
