@@ -12,14 +12,20 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('tasks', function (Blueprint $table) {
-            // Remove base_points column
-            $table->dropColumn('base_points');
+            // Remove base_points column if it exists
+            if (Schema::hasColumn('tasks', 'base_points')) {
+                $table->dropColumn('base_points');
+            }
             
-            // Add reward field
-            $table->integer('reward')->default(10)->after('requirements');
+            // Add reward field if it doesn't exist
+            if (!Schema::hasColumn('tasks', 'reward')) {
+                $table->integer('reward')->default(10)->after('requirements');
+            }
             
-            // Add task_status enum
-            $table->enum('task_status', ['active', 'pause', 'completed', 'suspended'])->default('active')->after('is_active');
+            // Add task_status enum if it doesn't exist
+            if (!Schema::hasColumn('tasks', 'task_status')) {
+                $table->enum('task_status', ['active', 'pause', 'completed', 'suspended'])->default('active')->after('is_active');
+            }
         });
     }
 
@@ -29,11 +35,18 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('tasks', function (Blueprint $table) {
-            // Add back base_points column
-            $table->integer('base_points')->default(10)->after('requirements');
+            // Add back base_points column if it doesn't exist
+            if (!Schema::hasColumn('tasks', 'base_points')) {
+                $table->integer('base_points')->default(10)->after('requirements');
+            }
             
-            // Remove reward and task_status columns
-            $table->dropColumn(['reward', 'task_status']);
+            // Remove reward and task_status columns if they exist
+            if (Schema::hasColumn('tasks', 'reward')) {
+                $table->dropColumn('reward');
+            }
+            if (Schema::hasColumn('tasks', 'task_status')) {
+                $table->dropColumn('task_status');
+            }
         });
     }
 };
