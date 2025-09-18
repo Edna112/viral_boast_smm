@@ -12,9 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->integer('total_points')->default(0)->after('referred_by');
-            $table->integer('tasks_completed_today')->default(0)->after('total_points');
-            $table->date('last_task_reset_date')->nullable()->after('tasks_completed_today');
+            // Only add columns if they don't exist
+            if (!Schema::hasColumn('users', 'total_points')) {
+                $table->integer('total_points')->default(0)->after('referred_by');
+            }
+            if (!Schema::hasColumn('users', 'tasks_completed_today')) {
+                $table->integer('tasks_completed_today')->default(0)->after('total_points');
+            }
+            if (!Schema::hasColumn('users', 'last_task_reset_date')) {
+                $table->date('last_task_reset_date')->nullable()->after('tasks_completed_today');
+            }
         });
     }
 
@@ -24,7 +31,16 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['total_points', 'tasks_completed_today', 'last_task_reset_date']);
+            // Only drop columns if they exist
+            if (Schema::hasColumn('users', 'total_points')) {
+                $table->dropColumn('total_points');
+            }
+            if (Schema::hasColumn('users', 'tasks_completed_today')) {
+                $table->dropColumn('tasks_completed_today');
+            }
+            if (Schema::hasColumn('users', 'last_task_reset_date')) {
+                $table->dropColumn('last_task_reset_date');
+            }
         });
     }
 };
