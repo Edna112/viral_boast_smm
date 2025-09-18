@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('user_memberships', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->uuid('user_uuid');
             $table->unsignedBigInteger('membership_id');
             $table->timestamp('started_at')->nullable();
             $table->timestamp('expires_at')->nullable();
@@ -22,8 +22,9 @@ return new class extends Migration
             $table->date('last_reset_date')->nullable();
             $table->timestamps();
             
-            $table->unique(['user_id', 'membership_id']);
-            $table->index(['user_id', 'is_active']);
+            $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
+            $table->unique(['user_uuid', 'membership_id']);
+            $table->index(['user_uuid', 'is_active']);
         });
     }
 

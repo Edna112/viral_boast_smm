@@ -13,15 +13,15 @@ return new class extends Migration
     {
         Schema::create('referrals', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('referrer_id');
-            $table->unsignedBigInteger('referred_user_id');
+            $table->uuid('referrer_uuid');
+            $table->uuid('referred_user_uuid');
             $table->string('status')->default('pending'); // pending, completed, cancelled
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
             
-            $table->foreign('referrer_id')->references('id')->on('users')->onDelete('cascade');
-            $table->foreign('referred_user_id')->references('id')->on('users')->onDelete('cascade');
-            $table->unique(['referrer_id', 'referred_user_id']);
+            $table->foreign('referrer_uuid')->references('uuid')->on('users')->onDelete('cascade');
+            $table->foreign('referred_user_uuid')->references('uuid')->on('users')->onDelete('cascade');
+            $table->unique(['referrer_uuid', 'referred_user_uuid']);
         });
     }
 
