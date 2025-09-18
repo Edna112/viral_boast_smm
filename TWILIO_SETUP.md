@@ -28,7 +28,7 @@ TWILIO_FROM=your_twilio_phone_number
 ### 3. Example Configuration
 
 ```env
-TWILIO_SID=AC1234567890abcdef1234567890abcdef
+TWILIO_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 TWILIO_TOKEN=your_auth_token_here
 TWILIO_FROM=+1234567890
 ```
