@@ -12,9 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('membership', function (Blueprint $table) {
-            $table->decimal('reward_multiplier', 3, 1)->default(1.0)->after('benefits');
-            $table->integer('priority_level')->default(1)->after('reward_multiplier');
-            $table->boolean('is_active')->default(true)->after('priority_level');
+            // Only add columns if they don't exist
+            if (!Schema::hasColumn('membership', 'reward_multiplier')) {
+                $table->decimal('reward_multiplier', 3, 1)->default(1.0)->after('benefits');
+            }
+            if (!Schema::hasColumn('membership', 'priority_level')) {
+                $table->integer('priority_level')->default(1)->after('reward_multiplier');
+            }
+            if (!Schema::hasColumn('membership', 'is_active')) {
+                $table->boolean('is_active')->default(true)->after('priority_level');
+            }
         });
     }
 
