@@ -18,12 +18,12 @@ return new class extends Migration
             }
             // Only add referred_by if it doesn't exist
             if (!Schema::hasColumn('users', 'referred_by')) {
-                $table->unsignedBigInteger('referred_by')->nullable()->after('referral_code');
+                $table->uuid('referred_by')->nullable()->after('referral_code');
             }
             // Only add foreign key if it doesn't exist
             $foreignKeys = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'users' AND CONSTRAINT_NAME = 'users_referred_by_foreign'");
             if (empty($foreignKeys)) {
-                $table->foreign('referred_by')->references('id')->on('users')->onDelete('set null');
+                $table->foreign('referred_by')->references('uuid')->on('users')->onDelete('set null');
             }
         });
     }
