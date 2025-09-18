@@ -25,10 +25,13 @@ return new class extends Migration
             }
         }
 
-        // Add unique constraint to UUID column
-        Schema::table('users', function (Blueprint $table) {
-            $table->unique('uuid');
-        });
+        // Add unique constraint to UUID column if it doesn't exist
+        $indexes = \DB::select("SHOW INDEX FROM users WHERE Key_name = 'users_uuid_unique'");
+        if (empty($indexes)) {
+            Schema::table('users', function (Blueprint $table) {
+                $table->unique('uuid');
+            });
+        }
     }
 
     /**

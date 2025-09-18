@@ -71,15 +71,34 @@ return new class extends Migration
                 });
             }
             
+            // Drop unique constraint and index that include user_id
+            $uniqueKeys = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'user_memberships' AND CONSTRAINT_NAME = 'user_memberships_user_id_membership_id_unique'");
+            if (!empty($uniqueKeys)) {
+                Schema::table('user_memberships', function (Blueprint $table) {
+                    $table->dropUnique(['user_id', 'membership_id']);
+                });
+            }
+            
+            $indexKeys = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'user_memberships' AND CONSTRAINT_NAME = 'user_memberships_user_id_is_active_index'");
+            if (!empty($indexKeys)) {
+                Schema::table('user_memberships', function (Blueprint $table) {
+                    $table->dropIndex(['user_id', 'is_active']);
+                });
+            }
+            
+            // Only drop user_id column if it exists
             if (Schema::hasColumn('user_memberships', 'user_id')) {
                 Schema::table('user_memberships', function (Blueprint $table) {
                     $table->dropColumn('user_id');
                 });
             }
 
-            Schema::table('user_memberships', function (Blueprint $table) {
-                $table->uuid('user_uuid')->after('id');
-            });
+            // Only add user_uuid column if it doesn't exist
+            if (!Schema::hasColumn('user_memberships', 'user_uuid')) {
+                Schema::table('user_memberships', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->after('id');
+                });
+            }
 
             // Migrate data
             $userMemberships = \DB::table('user_memberships')->get();
@@ -92,10 +111,19 @@ return new class extends Migration
                 }
             }
 
-            Schema::table('user_memberships', function (Blueprint $table) {
-                $table->uuid('user_uuid')->nullable(false)->change();
-                $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
-            });
+            // Check if foreign key already exists before adding it
+            $existingFk = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'user_memberships' AND CONSTRAINT_NAME = 'user_memberships_user_uuid_foreign'");
+            if (empty($existingFk)) {
+                Schema::table('user_memberships', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->nullable(false)->change();
+                    $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
+                });
+            } else {
+                // Just make sure the column is not nullable
+                Schema::table('user_memberships', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->nullable(false)->change();
+                });
+            }
         }
 
         // Update user_vip_memberships table
@@ -108,15 +136,34 @@ return new class extends Migration
                 });
             }
             
+            // Drop unique constraint and index that include user_id
+            $uniqueKeys = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'user_vip_memberships' AND CONSTRAINT_NAME = 'user_vip_memberships_user_id_vip_membership_id_unique'");
+            if (!empty($uniqueKeys)) {
+                Schema::table('user_vip_memberships', function (Blueprint $table) {
+                    $table->dropUnique(['user_id', 'vip_membership_id']);
+                });
+            }
+            
+            $indexKeys = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'user_vip_memberships' AND CONSTRAINT_NAME = 'user_vip_memberships_user_id_is_active_index'");
+            if (!empty($indexKeys)) {
+                Schema::table('user_vip_memberships', function (Blueprint $table) {
+                    $table->dropIndex(['user_id', 'is_active']);
+                });
+            }
+            
+            // Only drop user_id column if it exists
             if (Schema::hasColumn('user_vip_memberships', 'user_id')) {
                 Schema::table('user_vip_memberships', function (Blueprint $table) {
                     $table->dropColumn('user_id');
                 });
             }
 
-            Schema::table('user_vip_memberships', function (Blueprint $table) {
-                $table->uuid('user_uuid')->after('id');
-            });
+            // Only add user_uuid column if it doesn't exist
+            if (!Schema::hasColumn('user_vip_memberships', 'user_uuid')) {
+                Schema::table('user_vip_memberships', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->after('id');
+                });
+            }
 
             // Migrate data
             $userVipMemberships = \DB::table('user_vip_memberships')->get();
@@ -129,10 +176,19 @@ return new class extends Migration
                 }
             }
 
-            Schema::table('user_vip_memberships', function (Blueprint $table) {
-                $table->uuid('user_uuid')->nullable(false)->change();
-                $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
-            });
+            // Check if foreign key already exists before adding it
+            $existingFk = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'user_vip_memberships' AND CONSTRAINT_NAME = 'user_vip_memberships_user_uuid_foreign'");
+            if (empty($existingFk)) {
+                Schema::table('user_vip_memberships', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->nullable(false)->change();
+                    $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
+                });
+            } else {
+                // Just make sure the column is not nullable
+                Schema::table('user_vip_memberships', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->nullable(false)->change();
+                });
+            }
         }
 
         // Update task_assignments table
@@ -145,15 +201,27 @@ return new class extends Migration
                 });
             }
             
+            // Drop index that includes user_id
+            $indexKeys = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'task_assignments' AND CONSTRAINT_NAME = 'task_assignments_user_id_status_index'");
+            if (!empty($indexKeys)) {
+                Schema::table('task_assignments', function (Blueprint $table) {
+                    $table->dropIndex(['user_id', 'status']);
+                });
+            }
+            
+            // Only drop user_id column if it exists
             if (Schema::hasColumn('task_assignments', 'user_id')) {
                 Schema::table('task_assignments', function (Blueprint $table) {
                     $table->dropColumn('user_id');
                 });
             }
 
-            Schema::table('task_assignments', function (Blueprint $table) {
-                $table->uuid('user_uuid')->after('id');
-            });
+            // Only add user_uuid column if it doesn't exist
+            if (!Schema::hasColumn('task_assignments', 'user_uuid')) {
+                Schema::table('task_assignments', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->after('id');
+                });
+            }
 
             // Migrate data
             $taskAssignments = \DB::table('task_assignments')->get();
@@ -166,10 +234,19 @@ return new class extends Migration
                 }
             }
 
-            Schema::table('task_assignments', function (Blueprint $table) {
-                $table->uuid('user_uuid')->nullable(false)->change();
-                $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
-            });
+            // Check if foreign key already exists before adding it
+            $existingFk = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'task_assignments' AND CONSTRAINT_NAME = 'task_assignments_user_uuid_foreign'");
+            if (empty($existingFk)) {
+                Schema::table('task_assignments', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->nullable(false)->change();
+                    $table->foreign('user_uuid')->references('uuid')->on('users')->onDelete('cascade');
+                });
+            } else {
+                // Just make sure the column is not nullable
+                Schema::table('task_assignments', function (Blueprint $table) {
+                    $table->uuid('user_uuid')->nullable(false)->change();
+                });
+            }
         }
 
         // Update referrals table
@@ -189,16 +266,34 @@ return new class extends Migration
                 });
             }
             
+            // Only drop columns if they exist
             if (Schema::hasColumn('referrals', 'referrer_id') || Schema::hasColumn('referrals', 'referred_user_id')) {
-                Schema::table('referrals', function (Blueprint $table) {
-                    $table->dropColumn(['referrer_id', 'referred_user_id']);
-                });
+                $columnsToDrop = [];
+                if (Schema::hasColumn('referrals', 'referrer_id')) {
+                    $columnsToDrop[] = 'referrer_id';
+                }
+                if (Schema::hasColumn('referrals', 'referred_user_id')) {
+                    $columnsToDrop[] = 'referred_user_id';
+                }
+                
+                if (!empty($columnsToDrop)) {
+                    Schema::table('referrals', function (Blueprint $table) use ($columnsToDrop) {
+                        $table->dropColumn($columnsToDrop);
+                    });
+                }
             }
 
-            Schema::table('referrals', function (Blueprint $table) {
-                $table->uuid('referrer_uuid')->after('id');
-                $table->uuid('referred_user_uuid')->after('referrer_uuid');
-            });
+            // Only add UUID columns if they don't exist
+            if (!Schema::hasColumn('referrals', 'referrer_uuid')) {
+                Schema::table('referrals', function (Blueprint $table) {
+                    $table->uuid('referrer_uuid')->after('id');
+                });
+            }
+            if (!Schema::hasColumn('referrals', 'referred_user_uuid')) {
+                Schema::table('referrals', function (Blueprint $table) {
+                    $table->uuid('referred_user_uuid')->after('referrer_uuid');
+                });
+            }
 
             // Migrate data
             $referrals = \DB::table('referrals')->get();
@@ -216,12 +311,28 @@ return new class extends Migration
                 }
             }
 
-            Schema::table('referrals', function (Blueprint $table) {
-                $table->uuid('referrer_uuid')->nullable(false)->change();
-                $table->uuid('referred_user_uuid')->nullable(false)->change();
-                $table->foreign('referrer_uuid')->references('uuid')->on('users')->onDelete('cascade');
-                $table->foreign('referred_user_uuid')->references('uuid')->on('users')->onDelete('cascade');
-            });
+            // Check if foreign keys already exist before adding them
+            $referrerFk = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'referrals' AND CONSTRAINT_NAME = 'referrals_referrer_uuid_foreign'");
+            $referredFk = \DB::select("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_NAME = 'referrals' AND CONSTRAINT_NAME = 'referrals_referred_user_uuid_foreign'");
+            
+            if (empty($referrerFk) || empty($referredFk)) {
+                Schema::table('referrals', function (Blueprint $table) {
+                    $table->uuid('referrer_uuid')->nullable(false)->change();
+                    $table->uuid('referred_user_uuid')->nullable(false)->change();
+                    if (empty($referrerFk)) {
+                        $table->foreign('referrer_uuid')->references('uuid')->on('users')->onDelete('cascade');
+                    }
+                    if (empty($referredFk)) {
+                        $table->foreign('referred_user_uuid')->references('uuid')->on('users')->onDelete('cascade');
+                    }
+                });
+            } else {
+                // Just make sure the columns are not nullable
+                Schema::table('referrals', function (Blueprint $table) {
+                    $table->uuid('referrer_uuid')->nullable(false)->change();
+                    $table->uuid('referred_user_uuid')->nullable(false)->change();
+                });
+            }
         }
     }
 };
