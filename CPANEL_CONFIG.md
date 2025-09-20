@@ -93,3 +93,9 @@ php artisan tinker
 This should return a PDO object if the connection is successful.
 
 
+
+
+
+
+
+

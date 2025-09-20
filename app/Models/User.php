@@ -67,6 +67,17 @@ class User extends Authenticatable
         'total_points',
         'tasks_completed_today',
         'last_task_reset_date',
+        'profile_picture',
+        'is_active',
+        'is_admin',
+        'deactivated_at',
+        'deactivation_reason',
+        'profile_visibility',
+        'show_email',
+        'show_phone',
+        'show_activity',
+        'email_notifications',
+        'sms_notifications',
     ];
 
     /**
@@ -95,6 +106,14 @@ class User extends Authenticatable
             'email_verification_expires_at' => 'datetime',
             'phone_verification_expires_at' => 'datetime',
             'phone_verified_at' => 'datetime',
+            'deactivated_at' => 'datetime',
+            'is_active' => 'boolean',
+            'is_admin' => 'boolean',
+            'show_email' => 'boolean',
+            'show_phone' => 'boolean',
+            'show_activity' => 'boolean',
+            'email_notifications' => 'boolean',
+            'sms_notifications' => 'boolean',
         ];
     }
 

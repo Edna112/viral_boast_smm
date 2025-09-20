@@ -245,7 +245,7 @@ class AuthController extends Controller
             if (
                 $user->email_verification_code &&
                 $user->email_verification_expires_at &&
-                Carbon::now()->lessThanOrEqualTo($user->email_verification_expires_at) &&
+                Carbon::now()->lessThan($user->email_verification_expires_at) &&
                 $user->email_verification_code === $data['code']
             ) {
                 $isValidCode = true;
@@ -259,7 +259,7 @@ class AuthController extends Controller
             if (
                 $user->phone_verification_code &&
                 $user->phone_verification_expires_at &&
-                Carbon::now()->lessThanOrEqualTo($user->phone_verification_expires_at) &&
+                Carbon::now()->lessThan($user->phone_verification_expires_at) &&
                 $user->phone_verification_code === $data['code']
             ) {
                 $isValidCode = true;

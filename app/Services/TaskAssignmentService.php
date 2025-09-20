@@ -69,7 +69,7 @@ class TaskAssignmentService
      */
     public function assignTasksToUser(User $user, $availableTasks): int
     {
-        $activeMembership = $user->activeMembership->first();
+        $activeMembership = $user->activeMembership()->first();
         
         if (!$activeMembership) {
             throw new \Exception('User has no active membership');

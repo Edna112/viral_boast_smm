@@ -29,6 +29,9 @@ Route::prefix('auth')->name('auth.')->group(function () {
     // Password reset
     Route::post('/forgot-password', [WebAuthController::class, 'forgotPassword'])->name('forgot');
     Route::post('/reset-password', [WebAuthController::class, 'resetPassword'])->name('reset');
+    Route::get('/password/reset/{token}', function ($token) {
+        return response()->json(['message' => 'Password reset page', 'token' => $token]);
+    })->name('password.reset');
     
     // Logout
     Route::post('/logout', [WebAuthController::class, 'logout'])->name('logout');

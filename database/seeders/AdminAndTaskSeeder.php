@@ -26,8 +26,14 @@ class AdminAndTaskSeeder extends Seeder
                 'referral_code' => 'ADMIN001',
                 'email_verified_at' => now(),
                 'phone_verified_at' => now(),
+                'is_admin' => true,
             ]
         );
+
+        // Update existing admin user to have admin privileges
+        if ($admin->is_admin !== true) {
+            $admin->update(['is_admin' => true]);
+        }
 
         $this->command->info('✅ Admin user created:');
         $this->command->info('   Email: admin@viralboast.com');

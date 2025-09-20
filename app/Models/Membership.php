@@ -15,7 +15,6 @@ class Membership extends Model
         'task_link',
         'benefits',
         'price',
-        'duration_days',
         'reward_multiplier',
         'priority_level',
         'is_active',

@@ -24,7 +24,20 @@ class MembershipController extends Controller
 
     public function store(Request $request)
     {
-        $membership = Membership::create($request->all());
+        $data = $request->validate([
+            'membership_name' => 'required|string|max:255|unique:membership,membership_name',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'benefits' => 'nullable|numeric|min:0',
+            'tasks_per_day' => 'required|numeric|min:1',
+            'max_tasks' => 'required|numeric|min:1',
+            'task_link' => 'nullable|url',
+            'reward_multiplier' => 'nullable|numeric|min:0.1|max:10',
+            'priority_level' => 'nullable|integer|min:1|max:10',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $membership = Membership::create($data);
         return response()->json($membership, 201);
     }
 
@@ -34,7 +47,21 @@ class MembershipController extends Controller
         if (!$membership) {
             return response()->json(['message' => 'Membership not found'], 404);
         }
-        $membership->update($request->all());
+
+        $data = $request->validate([
+            'membership_name' => 'sometimes|string|max:255|unique:membership,membership_name,' . $id,
+            'description' => 'nullable|string',
+            'price' => 'sometimes|numeric|min:0',
+            'benefits' => 'nullable|numeric|min:0',
+            'tasks_per_day' => 'sometimes|numeric|min:1',
+            'max_tasks' => 'sometimes|numeric|min:1',
+            'task_link' => 'nullable|url',
+            'reward_multiplier' => 'nullable|numeric|min:0.1|max:10',
+            'priority_level' => 'nullable|integer|min:1|max:10',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $membership->update($data);
         return response()->json($membership);
     }
 
