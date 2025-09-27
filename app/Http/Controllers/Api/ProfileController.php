@@ -6,15 +6,24 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserMembership;
 use App\Models\Referral;
+use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Carbon\Carbon;
 
 class ProfileController extends Controller
 {
+    protected $cloudinaryService;
+
+    public function __construct(CloudinaryService $cloudinaryService)
+    {
+        $this->cloudinaryService = $cloudinaryService;
+    }
+
     /**
      * Get current user's profile information
      */
@@ -40,6 +49,7 @@ class ProfileController extends Controller
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'profile_image' => $user->profile_image ? $this->getProfileImageUrl($user->profile_image) : null,
                     'referral_code' => $user->referral_code,
                     'email_verified_at' => $user->email_verified_at,
                     'phone_verified_at' => $user->phone_verified_at,
@@ -65,7 +75,7 @@ class ProfileController extends Controller
     }
 
     /**
-     * Update user's basic profile information
+     * Update user's basic profile information including profile image
      */
     public function updateProfile(Request $request)
     {
@@ -75,17 +85,51 @@ class ProfileController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:32', Rule::unique('users', 'phone')->ignore($user->id)],
+            'profile_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'], // 2MB max
         ]);
 
         // Check if email is being changed
         $emailChanged = $user->email !== $data['email'];
         $phoneChanged = $user->phone !== $data['phone'];
 
-        $user->update([
+        // Handle profile image upload if provided
+        $profileImageUrl = null;
+        if ($request->hasFile('profile_image')) {
+            // Delete old profile image if exists
+            if ($user->profile_image) {
+                $this->deleteProfileImage($user->profile_image);
+            }
+
+            // Upload new profile image to Cloudinary
+            $uploadResult = $this->cloudinaryService->uploadProfileImage(
+                $request->file('profile_image'),
+                $user->uuid
+            );
+
+            if ($uploadResult['success']) {
+                $profileImageUrl = $uploadResult['secure_url'];
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to upload profile image',
+                    'error' => $uploadResult['error']
+                ], 422);
+            }
+        }
+
+        // Prepare update data
+        $updateData = [
             'name' => $data['name'],
             'email' => $data['email'],
             'phone' => $data['phone'],
-        ]);
+        ];
+
+        // Add profile image URL if uploaded
+        if ($profileImageUrl) {
+            $updateData['profile_image'] = $profileImageUrl;
+        }
+
+        $user->update($updateData);
 
         // If email changed, mark as unverified and send verification
         if ($emailChanged) {
@@ -108,21 +152,25 @@ class ProfileController extends Controller
             ]);
         }
 
+        // Prepare response data
+        $responseData = [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'phone' => $user->phone,
+                'profile_image' => $user->profile_image ? $this->getProfileImageUrl($user->profile_image) : null,
+                'email_verified_at' => $user->email_verified_at,
+                'phone_verified_at' => $user->phone_verified_at,
+            ],
+            'email_verification_required' => $emailChanged,
+            'phone_verification_required' => $phoneChanged,
+        ];
+
         return response()->json([
             'success' => true,
             'message' => 'Profile updated successfully',
-            'data' => [
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'email_verified_at' => $user->email_verified_at,
-                    'phone_verified_at' => $user->phone_verified_at,
-                ],
-                'email_verification_required' => $emailChanged,
-                'phone_verification_required' => $phoneChanged,
-            ]
+            'data' => $responseData
         ]);
     }
 
@@ -159,52 +207,63 @@ class ProfileController extends Controller
     }
 
     /**
-     * Upload and update user's profile picture
+     * Upload and update user's profile picture (legacy method - use updateProfile instead)
      */
     public function updateProfilePicture(Request $request)
     {
         $user = $request->user();
 
         $request->validate([
-            'profile_picture' => ['required', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'], // 2MB max
+            'profile_image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'], // 2MB max
         ]);
 
-        // Delete old profile picture if exists
-        if ($user->profile_picture) {
-            Storage::disk('public')->delete($user->profile_picture);
+        // Delete old profile image if exists
+        if ($user->profile_image) {
+            $this->deleteProfileImage($user->profile_image);
         }
 
-        // Store new profile picture
-        $path = $request->file('profile_picture')->store('profile-pictures', 'public');
+        // Upload new profile image to Cloudinary
+        $uploadResult = $this->cloudinaryService->uploadProfileImage(
+            $request->file('profile_image'),
+            $user->uuid
+        );
+
+        if (!$uploadResult['success']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to upload profile image',
+                'error' => $uploadResult['error']
+            ], 422);
+        }
 
         $user->update([
-            'profile_picture' => $path,
+            'profile_image' => $uploadResult['secure_url'],
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Profile picture updated successfully',
+            'message' => 'Profile image updated successfully',
             'data' => [
-                'profile_picture_url' => Storage::url($path),
+                'profile_image_url' => $uploadResult['secure_url'],
             ]
         ]);
     }
 
     /**
-     * Delete user's profile picture
+     * Delete user's profile image (legacy method - use updateProfile instead)
      */
     public function deleteProfilePicture(Request $request)
     {
         $user = $request->user();
 
-        if ($user->profile_picture) {
-            Storage::disk('public')->delete($user->profile_picture);
-            $user->update(['profile_picture' => null]);
+        if ($user->profile_image) {
+            $this->deleteProfileImage($user->profile_image);
+            $user->update(['profile_image' => null]);
         }
 
         return response()->json([
             'success' => true,
-            'message' => 'Profile picture deleted successfully'
+            'message' => 'Profile image deleted successfully'
         ]);
     }
 
@@ -461,31 +520,67 @@ class ProfileController extends Controller
     }
 
     /**
+     * Get profile image URL (handles both Cloudinary and local storage)
+     */
+    private function getProfileImageUrl($profileImage)
+    {
+        // If it's already a full URL (Cloudinary), return as is
+        if (filter_var($profileImage, FILTER_VALIDATE_URL)) {
+            return $profileImage;
+        }
+
+        // If it's a local storage path, return Storage URL
+        return Storage::url($profileImage);
+    }
+
+    /**
+     * Delete profile image from storage
+     */
+    private function deleteProfileImage($profileImage)
+    {
+        // If it's a Cloudinary URL, extract public ID and delete from Cloudinary
+        if (filter_var($profileImage, FILTER_VALIDATE_URL)) {
+            $publicId = $this->cloudinaryService->extractPublicId($profileImage);
+            if ($publicId) {
+                $this->cloudinaryService->deleteImage($publicId);
+            }
+        } else {
+            // If it's a local storage path, delete from local storage
+            Storage::disk('public')->delete($profileImage);
+        }
+    }
+
+    /**
      * Helper method to send email verification
      */
     private function sendEmailVerification($user)
     {
-        $verificationCode = random_int(100000, 999999);
-        
-        $user->update([
-            'email_verification_code' => (string) $verificationCode,
-            'email_verification_expires_at' => Carbon::now()->addMinutes(2),
-        ]);
+        try {
+            $verificationCode = random_int(100000, 999999);
+            
+            $user->update([
+                'email_verification_code' => (string) $verificationCode,
+                'email_verification_expires_at' => Carbon::now()->addMinutes(2),
+            ]);
 
-        // Send verification email
-        $emailContent = "
-            <h2>Email Verification Required</h2>
-            <p>Hello {$user->name},</p>
-            <p>You've updated your email address. Please verify your new email with this code:</p>
-            <p><strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
-            <p>This code will expire in 2 minutes.</p>
-            <br>
-            <p>Best regards,<br>Viral Boast SMM Team</p>
-        ";
-        
-        \Mail::html($emailContent, function ($message) use ($user) {
-            $message->to($user->email)
-                ->subject('Verify Your New Email - Viral Boast SMM');
-        });
+            // Send verification email
+            $emailContent = "
+                <h2>Email Verification Required</h2>
+                <p>Hello {$user->name},</p>
+                <p>You've updated your email address. Please verify your new email with this code:</p>
+                <p><strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
+                <p>This code will expire in 2 minutes.</p>
+                <br>
+                <p>Best regards,<br>Viral Boast SMM Team</p>
+            ";
+            
+            Mail::html($emailContent, function ($message) use ($user) {
+                $message->to($user->email)
+                    ->subject('Verify Your New Email - Viral Boast SMM');
+            });
+        } catch (\Exception $e) {
+            // Log the error but don't fail the profile update
+            \Log::error('Failed to send email verification: ' . $e->getMessage());
+        }
     }
 }

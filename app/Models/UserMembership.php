@@ -9,7 +9,7 @@ use Carbon\Carbon;
 class UserMembership extends Model
 {
     protected $fillable = [
-        'user_id',
+        'user_uuid',
         'membership_id',
         'started_at',
         'expires_at',
@@ -30,7 +30,7 @@ class UserMembership extends Model
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_uuid', 'uuid');
     }
 
     /**

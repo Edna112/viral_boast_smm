@@ -25,6 +25,9 @@ class Task extends Model
         'sort_order',
         'threshold_value',
         'task_completion_count',
+        'task_distribution_count',
+        'distribution_threshold',
+        'completion_threshold',
         'category'
     ];
 
@@ -33,7 +36,10 @@ class Task extends Model
         'requires_photo' => 'boolean',
         'is_active' => 'boolean',
         'reward' => 'decimal:2',
-        'task_completion_count' => 'integer'
+        'task_completion_count' => 'integer',
+        'task_distribution_count' => 'integer',
+        'distribution_threshold' => 'integer',
+        'completion_threshold' => 'integer'
     ];
 
     /**
@@ -135,7 +141,64 @@ class Task extends Model
             'pending_assignments' => $this->activeAssignments()->count(),
             'completion_rate' => $this->assignments()->count() > 0 
                 ? round(($this->completedAssignments()->count() / $this->assignments()->count()) * 100, 2)
-                : 0
+                : 0,
+            'distribution_count' => $this->task_distribution_count,
+            'completion_count' => $this->task_completion_count,
+            'distribution_threshold' => $this->distribution_threshold,
+            'completion_threshold' => $this->completion_threshold
         ];
+    }
+
+    /**
+     * Check if task can be distributed
+     */
+    public function canBeDistributed(): bool
+    {
+        return $this->is_active 
+            && $this->task_distribution_count < $this->distribution_threshold
+            && $this->task_completion_count < $this->completion_threshold;
+    }
+
+    /**
+     * Check if task is at distribution limit
+     */
+    public function isAtDistributionLimit(): bool
+    {
+        return $this->task_distribution_count >= $this->distribution_threshold;
+    }
+
+    /**
+     * Check if task is at completion limit
+     */
+    public function isAtCompletionLimit(): bool
+    {
+        return $this->task_completion_count >= $this->completion_threshold;
+    }
+
+    /**
+     * Increment distribution count
+     */
+    public function incrementDistributionCount(): void
+    {
+        $this->increment('task_distribution_count');
+    }
+
+    /**
+     * Get available tasks for distribution
+     */
+    public static function getAvailableForDistribution($categoryId = null)
+    {
+        $query = self::active()->where(function($q) {
+            $q->where('task_distribution_count', '<', \DB::raw('distribution_threshold'))
+              ->where('task_completion_count', '<', \DB::raw('completion_threshold'));
+        });
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        return $query->orderBy('sort_order', 'asc')
+                    ->orderBy('created_at', 'asc')
+                    ->get();
     }
 }

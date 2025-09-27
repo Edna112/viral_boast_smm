@@ -57,19 +57,19 @@ class AuthController extends Controller
             ], 409);
         }
 
-        // 2. Validate Referral Code (if provided)
-        $referrerId = null;
+        // 2. Validate Referral Code (if provided) with limits check
+        $referrer = null;
         if (!empty($data['referralCode'])) {
-            $referrer = User::where('referral_code', $data['referralCode'])->first();
-            if (!$referrer) {
+            $validation = User::validateReferralCodeWithLimits($data['referralCode']);
+            if (!$validation['valid']) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Invalid referral code provided.',
-                    'error' => 'InvalidReferralCode',
+                    'message' => $validation['message'],
+                    'error' => $validation['error'],
                     'details' => ['field' => 'referralCode']
                 ], 400);
             }
-            $referrerId = $referrer->id;
+            $referrer = User::getByReferralCode($data['referralCode']);
         }
 
         // 3. Hash Password
@@ -86,7 +86,7 @@ class AuthController extends Controller
             'name' => $data['name'],
             'password' => $hashedPassword,
             'referral_code' => $newReferralCode,
-            'referred_by' => $referrerId,
+            'referred_by' => $referrer ? $referrer->uuid : null,
         ];
 
         // Add email or phone verification based on what was provided
@@ -104,16 +104,18 @@ class AuthController extends Controller
 
         $user = User::create($userData);
 
-        // 7. Handle Referral (if valid referral code was provided)
-        if ($referrerId) {
-            Referral::create([
-                'referrer_id' => $referrerId,
-                'referred_user_id' => $user->id,
-                'status' => 'pending',
-            ]);
-
-            // TODO: Trigger business logic for referrer (e.g., increment referral count, award points)
-            // This should be handled asynchronously via a queue to avoid slowing down registration
+        // 7. Handle Referral Bonuses (if valid referral code was provided)
+        if ($referrer) {
+            // Process direct referral bonus for the referrer
+            $referrer->processDirectReferralBonus($user);
+            
+            // Process indirect referral bonus for the referrer's referrer (Level 1)
+            if ($referrer->referred_by) {
+                $indirectReferrer = User::where('uuid', $referrer->referred_by)->first();
+                if ($indirectReferrer) {
+                    $indirectReferrer->processIndirectReferralBonus($user);
+                }
+            }
         }
 
         // 8. Send verification code
@@ -524,19 +526,34 @@ class AuthController extends Controller
         // Create API token for the session
         $token = $user->createToken('api')->plainTextToken;
 
-        // Respond with token and basic user info
+        // Respond with token and complete user info
         return response()->json([
             'success' => true,
             'message' => 'Login successful',
             'token' => $token,
             'user' => [
                 'id' => $user->id,
+                'uuid' => $user->uuid,
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
-                'referralCode' => $user->referral_code,
+                'profile_image' => $user->profile_image,
+                'referral_code' => $user->referral_code,
+                'referred_by' => $user->referred_by,
+                'email_verified_at' => $user->email_verified_at,
+                'phone_verified_at' => $user->phone_verified_at,
+                'email_verification_code' => $user->email_verification_code,
+                'phone_verification_code' => $user->phone_verification_code,
+                'email_verification_expires_at' => $user->email_verification_expires_at,
+                'phone_verification_expires_at' => $user->phone_verification_expires_at,
+                'remember_token' => $user->remember_token,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at,
+                'deleted_at' => $user->deleted_at,
+                // Computed fields for convenience
                 'emailVerified' => !is_null($user->email_verified_at),
                 'phoneVerified' => !is_null($user->phone_verified_at),
+                'isActive' => is_null($user->deleted_at),
             ],
         ]);
     }

@@ -66,8 +66,16 @@ class User extends Authenticatable
         'referred_by',
         'total_points',
         'tasks_completed_today',
+        'total_tasks',
+        'max_direct_referrals',
+        'direct_referrals_count',
+        'indirect_referrals_count',
+        'referral_bonus_earned',
+        'direct_referral_bonus',
+        'indirect_referral_bonus',
         'last_task_reset_date',
         'profile_picture',
+        'profile_image',
         'is_active',
         'is_admin',
         'deactivated_at',
@@ -159,6 +167,11 @@ class User extends Authenticatable
                 $model->uuid = Str::uuid();
             }
         });
+
+        static::created(function ($user) {
+            // Assign basic membership to new user
+            $user->assignBasicMembership();
+        });
     }
 
     public function referrer(): BelongsTo
@@ -168,12 +181,17 @@ class User extends Authenticatable
 
     public function referrals(): HasMany
     {
-        return $this->hasMany(Referral::class, 'referrer_id');
+        return $this->hasMany(Referral::class, 'referrer_uuid', 'uuid');
     }
 
     public function referredBy(): HasMany
     {
-        return $this->hasMany(Referral::class, 'referred_user_id');
+        return $this->hasMany(Referral::class, 'referred_user_uuid', 'uuid');
+    }
+
+    public function account()
+    {
+        return $this->hasOne(Account::class, 'user_uuid', 'uuid');
     }
 
     public function memberships()
@@ -245,5 +263,380 @@ class User extends Authenticatable
     {
         $membership = $this->currentVipMembership();
         return $membership ? $membership->vipMembership->reward_multiplier : 1.0;
+    }
+
+    /**
+     * Assign basic membership to user
+     */
+    public function assignBasicMembership(): void
+    {
+        // Get the basic membership
+        $basicMembership = Membership::where('membership_name', 'Basic')
+            ->where('is_active', true)
+            ->first();
+
+        if (!$basicMembership) {
+            \Log::warning('Basic membership not found when assigning to user: ' . $this->uuid);
+            return;
+        }
+
+        // Check if user already has this membership
+        $existingMembership = $this->memberships()
+            ->where('membership_id', $basicMembership->id)
+            ->first();
+
+        if ($existingMembership) {
+            // Update existing membership to active
+            $this->memberships()->updateExistingPivot($basicMembership->id, [
+                'is_active' => true,
+                'started_at' => now(),
+                'expires_at' => null, // Basic membership doesn't expire
+                'daily_tasks_completed' => 0,
+                'last_reset_date' => now()->toDateString(),
+            ]);
+        } else {
+            // Create new membership assignment
+            $this->memberships()->attach($basicMembership->id, [
+                'started_at' => now(),
+                'expires_at' => null, // Basic membership doesn't expire
+                'is_active' => true,
+                'daily_tasks_completed' => 0,
+                'last_reset_date' => now()->toDateString(),
+            ]);
+        }
+
+        \Log::info('Basic membership assigned to user: ' . $this->uuid);
+    }
+
+    /**
+     * Get user's current active membership
+     */
+    public function getCurrentMembership(): ?Membership
+    {
+        return $this->memberships()
+            ->wherePivot('is_active', true)
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->first();
+    }
+
+    /**
+     * Get user's membership level name
+     */
+    public function getMembershipLevel(): string
+    {
+        $membership = $this->getCurrentMembership();
+        return $membership ? $membership->membership_name : 'Basic';
+    }
+
+    /**
+     * Get user's daily task limit based on membership
+     */
+    public function getDailyTaskLimit(): int
+    {
+        $membership = $this->getCurrentMembership();
+        return $membership ? $membership->tasks_per_day : 5; // Default to 5 for basic
+    }
+
+    /**
+     * Check if user can complete more tasks today
+     */
+    public function canCompleteMoreTasks(): bool
+    {
+        $dailyLimit = $this->getDailyTaskLimit();
+        return $this->tasks_completed_today < $dailyLimit;
+    }
+
+    /**
+     * Increment total tasks completed by user
+     */
+    public function incrementTotalTasks(): void
+    {
+        $this->increment('total_tasks');
+    }
+
+    /**
+     * Get user's task completion statistics
+     */
+    public function getTaskStats(): array
+    {
+        return [
+            'total_tasks' => $this->total_tasks,
+            'tasks_completed_today' => $this->tasks_completed_today,
+            'last_task_reset_date' => $this->last_task_reset_date,
+            'daily_task_limit' => $this->getDailyTaskLimit(),
+            'can_complete_more_tasks' => $this->canCompleteMoreTasks(),
+            'membership_level' => $this->getMembershipLevel(),
+        ];
+    }
+
+    /**
+     * Reset daily task count (for daily cron jobs)
+     */
+    public function resetDailyTaskCount(): void
+    {
+        $this->update([
+            'tasks_completed_today' => 0,
+            'last_task_reset_date' => now()->toDateString(),
+        ]);
+    }
+
+    /**
+     * Check if a referral code is valid
+     */
+    public static function isValidReferralCode(string $referralCode): bool
+    {
+        if (empty($referralCode)) {
+            return false;
+        }
+
+        return self::where('referral_code', $referralCode)
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /**
+     * Get user by referral code
+     */
+    public static function getByReferralCode(string $referralCode): ?User
+    {
+        if (empty($referralCode)) {
+            return null;
+        }
+
+        return self::where('referral_code', $referralCode)
+            ->where('is_active', true)
+            ->first();
+    }
+
+    /**
+     * Validate referral code with detailed response
+     */
+    public static function validateReferralCode(string $referralCode): array
+    {
+        if (empty($referralCode)) {
+            return [
+                'valid' => false,
+                'message' => 'Referral code is required',
+                'error' => 'EMPTY_REFERRAL_CODE'
+            ];
+        }
+
+        if (strlen($referralCode) < 3 || strlen($referralCode) > 20) {
+            return [
+                'valid' => false,
+                'message' => 'Referral code must be between 3 and 20 characters',
+                'error' => 'INVALID_LENGTH'
+            ];
+        }
+
+        $referrer = self::getByReferralCode($referralCode);
+        
+        if (!$referrer) {
+            return [
+                'valid' => false,
+                'message' => 'Invalid referral code',
+                'error' => 'INVALID_REFERRAL_CODE'
+            ];
+        }
+
+        if (!$referrer->is_active) {
+            return [
+                'valid' => false,
+                'message' => 'Referral code belongs to an inactive user',
+                'error' => 'INACTIVE_REFERRER'
+            ];
+        }
+
+        // Note: deleted_at check removed as soft deletes are not implemented
+
+        return [
+            'valid' => true,
+            'message' => 'Valid referral code',
+            'referrer' => [
+                'uuid' => $referrer->uuid,
+                'name' => $referrer->name,
+                'referral_code' => $referrer->referral_code,
+                'total_referrals' => $referrer->referrals()->count(),
+                'is_active' => $referrer->is_active,
+                'max_direct_referrals' => $referrer->max_direct_referrals,
+                'direct_referrals_count' => $referrer->direct_referrals_count,
+                'remaining_referrals' => $referrer->getRemainingDirectReferrals(),
+            ]
+        ];
+    }
+
+    /**
+     * Check if user can use this referral code (prevents self-referral)
+     */
+    public function canUseReferralCode(string $referralCode): bool
+    {
+        if ($this->referral_code === $referralCode) {
+            return false; // Can't refer yourself
+        }
+
+        return self::isValidReferralCode($referralCode);
+    }
+
+    /**
+     * Get referral statistics for a user
+     */
+    public function getReferralStats(): array
+    {
+        $totalReferrals = $this->referrals()->count();
+        $activeReferrals = $this->referrals()
+            ->whereHas('referredUser', function ($query) {
+                $query->where('is_active', true);
+            })
+            ->count();
+
+        return [
+            'referral_code' => $this->referral_code,
+            'total_referrals' => $totalReferrals,
+            'active_referrals' => $activeReferrals,
+            'referral_url' => url('/register?ref=' . $this->referral_code),
+            'referrer_name' => $this->referred_by ? $this->referrer->name : null,
+            'referrer_code' => $this->referred_by ? $this->referrer->referral_code : null,
+        ];
+    }
+
+    /**
+     * Generate a unique referral code
+     */
+    public static function generateUniqueReferralCode(int $length = 8): string
+    {
+        do {
+            $code = strtoupper(Str::random($length));
+        } while (self::where('referral_code', $code)->exists());
+
+        return $code;
+    }
+
+    /**
+     * Check if user can make more direct referrals
+     */
+    public function canMakeDirectReferral(): bool
+    {
+        return $this->direct_referrals_count < $this->max_direct_referrals;
+    }
+
+    /**
+     * Get remaining direct referrals allowed
+     */
+    public function getRemainingDirectReferrals(): int
+    {
+        return max(0, $this->max_direct_referrals - $this->direct_referrals_count);
+    }
+
+    /**
+     * Process referral bonus for direct referral
+     */
+    public function processDirectReferralBonus(User $referredUser): void
+    {
+        if (!$this->canMakeDirectReferral()) {
+            \Log::warning("User {$this->uuid} has reached maximum direct referrals limit");
+            return;
+        }
+
+        // Create direct referral record
+        $referral = Referral::create([
+            'referrer_uuid' => $this->uuid,
+            'referred_user_uuid' => $referredUser->uuid,
+            'referral_type' => 'direct',
+            'bonus_amount' => $this->direct_referral_bonus,
+            'status' => 'completed',
+        ]);
+
+        // Update user counts and bonus
+        $this->increment('direct_referrals_count');
+        $this->increment('referral_bonus_earned', $this->direct_referral_bonus);
+        $this->increment('total_points', $this->direct_referral_bonus);
+
+        // Mark bonus as paid
+        $referral->markBonusPaid();
+
+        \Log::info("Direct referral bonus processed: {$this->direct_referral_bonus} for user {$this->uuid}");
+    }
+
+    /**
+     * Process referral bonus for indirect referral (Level 1)
+     */
+    public function processIndirectReferralBonus(User $referredUser): void
+    {
+        // Create indirect referral record
+        $referral = Referral::create([
+            'referrer_uuid' => $this->uuid,
+            'referred_user_uuid' => $referredUser->uuid,
+            'referral_type' => 'indirect',
+            'bonus_amount' => $this->indirect_referral_bonus,
+            'status' => 'completed',
+        ]);
+
+        // Update user counts and bonus
+        $this->increment('indirect_referrals_count');
+        $this->increment('referral_bonus_earned', $this->indirect_referral_bonus);
+        $this->increment('total_points', $this->indirect_referral_bonus);
+
+        // Mark bonus as paid
+        $referral->markBonusPaid();
+
+        \Log::info("Indirect referral bonus processed: {$this->indirect_referral_bonus} for user {$this->uuid}");
+    }
+
+    /**
+     * Get comprehensive referral statistics
+     */
+    public function getComprehensiveReferralStats(): array
+    {
+        $directReferrals = $this->referrals()->direct()->completed()->count();
+        $indirectReferrals = $this->referrals()->indirect()->completed()->count();
+        $pendingReferrals = $this->referrals()->pending()->count();
+
+        return [
+            'referral_code' => $this->referral_code,
+            'max_direct_referrals' => $this->max_direct_referrals,
+            'direct_referrals_count' => $this->direct_referrals_count,
+            'indirect_referrals_count' => $this->indirect_referrals_count,
+            'remaining_direct_referrals' => $this->getRemainingDirectReferrals(),
+            'can_make_direct_referral' => $this->canMakeDirectReferral(),
+            'referral_bonus_earned' => $this->referral_bonus_earned,
+            'direct_referral_bonus' => $this->direct_referral_bonus,
+            'indirect_referral_bonus' => $this->indirect_referral_bonus,
+            'total_referrals' => $directReferrals + $indirectReferrals,
+            'pending_referrals' => $pendingReferrals,
+            'referral_url' => url('/register?ref=' . $this->referral_code),
+        ];
+    }
+
+    /**
+     * Validate referral code with limits check
+     */
+    public static function validateReferralCodeWithLimits(string $referralCode): array
+    {
+        $validation = self::validateReferralCode($referralCode);
+        
+        if (!$validation['valid']) {
+            return $validation;
+        }
+
+        $referrer = self::getByReferralCode($referralCode);
+        
+        if (!$referrer->canMakeDirectReferral()) {
+            return [
+                'valid' => false,
+                'message' => 'This referrer has reached their maximum direct referrals limit',
+                'error' => 'REFERRER_LIMIT_REACHED',
+                'referrer' => [
+                    'name' => $referrer->name,
+                    'max_direct_referrals' => $referrer->max_direct_referrals,
+                    'direct_referrals_count' => $referrer->direct_referrals_count,
+                    'remaining_referrals' => $referrer->getRemainingDirectReferrals(),
+                ]
+            ];
+        }
+
+        return $validation;
     }
 }

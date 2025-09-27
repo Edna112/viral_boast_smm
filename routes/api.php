@@ -6,6 +6,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminAuthController;
+use App\Http\Controllers\Api\TaskSubmissionController;
+use App\Http\Controllers\Api\ComplaintController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -25,10 +27,35 @@ Route::prefix('v1')->group(function () {
     // Development-only endpoint for testing verification codes
     Route::get('/auth/verification-code', [AuthController::class, 'getVerificationCode']);
     
+    // Anonymous complaint submission (no authentication required)
+    Route::post('/complaints/anonymous', [ComplaintController::class, 'submitAnonymousComplaint']);
+    
+    // Referral validation (public endpoints)
+    Route::post('/referrals/validate', [App\Http\Controllers\Api\ReferralController::class, 'validateReferralCode']);
+    Route::get('/referrals/user/{referral_code}', [App\Http\Controllers\Api\ReferralController::class, 'getUserByReferralCode']);
+    
     // Protected auth endpoints
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/auth/me', [AuthController::class, 'me']);
+        
+        // Referral management (authenticated endpoints)
+        Route::get('/referrals/stats', [App\Http\Controllers\Api\ReferralController::class, 'getReferralStats']);
+        Route::post('/referrals/can-use', [App\Http\Controllers\Api\ReferralController::class, 'canUseReferralCode']);
+        
+        // Account management (authenticated endpoints)
+        Route::get('/account', [App\Http\Controllers\Api\AccountController::class, 'getAccount']);
+        Route::get('/account/balance', [App\Http\Controllers\Api\AccountController::class, 'getBalance']);
+        Route::get('/account/financial-stats', [App\Http\Controllers\Api\AccountController::class, 'getFinancialStats']);
+        Route::post('/account/add-funds', [App\Http\Controllers\Api\AccountController::class, 'addFunds']);
+        Route::post('/account/deduct-funds', [App\Http\Controllers\Api\AccountController::class, 'deductFunds']);
+        Route::post('/account/transfer', [App\Http\Controllers\Api\AccountController::class, 'transferFunds']);
+        Route::get('/account/transactions', [App\Http\Controllers\Api\AccountController::class, 'getTransactionHistory']);
+        Route::post('/account/deactivate', [App\Http\Controllers\Api\AccountController::class, 'deactivateAccount']);
+        Route::post('/account/activate', [App\Http\Controllers\Api\AccountController::class, 'activateAccount']);
+        
+        // Task distribution algorithm (single route)
+        Route::get('/task-distribution/run', [App\Http\Controllers\Api\TaskDistributionController::class, 'distributeTasks']);
     });
 });
 
@@ -39,9 +66,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [ProfileController::class, 'updateProfile']);
     Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
     
-    // Profile picture management
-    Route::post('/profile/picture', [ProfileController::class, 'updateProfilePicture']);
-    Route::delete('/profile/picture', [ProfileController::class, 'deleteProfilePicture']);
+    // Profile picture management (legacy routes - use PUT /profile instead)
+    // Route::post('/profile/picture', [ProfileController::class, 'updateProfilePicture']);
+    // Route::delete('/profile/picture', [ProfileController::class, 'deleteProfilePicture']);
     
     // Activity and statistics
     Route::get('/profile/activity', [ProfileController::class, 'getActivityHistory']);
@@ -56,6 +83,20 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     
     // Account management
     Route::post('/profile/deactivate', [ProfileController::class, 'deactivateAccount']);
+    
+    // Task Submissions
+    Route::post('/task-submissions', [TaskSubmissionController::class, 'submitProof']);
+    Route::get('/task-submissions', [TaskSubmissionController::class, 'getUserSubmissions']);
+    Route::get('/task-submissions/stats', [TaskSubmissionController::class, 'getSubmissionStats']);
+    Route::get('/task-submissions/{id}', [TaskSubmissionController::class, 'getSubmission']);
+    Route::put('/task-submissions/{id}', [TaskSubmissionController::class, 'updateSubmission']);
+    Route::delete('/task-submissions/{id}', [TaskSubmissionController::class, 'deleteSubmission']);
+    
+    // Complaints
+    Route::post('/complaints', [ComplaintController::class, 'submitComplaint']);
+    Route::get('/complaints', [ComplaintController::class, 'getUserComplaints']);
+    Route::get('/complaints/stats', [ComplaintController::class, 'getComplaintStats']);
+    Route::get('/complaints/{id}', [ComplaintController::class, 'getComplaint']);
 });
 
 // Task Management API - v1
