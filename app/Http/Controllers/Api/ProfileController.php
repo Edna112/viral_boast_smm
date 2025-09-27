@@ -29,49 +29,64 @@ class ProfileController extends Controller
      */
     public function getProfile(Request $request)
     {
-        $user = $request->user();
-        
-        // Get user's current membership
-        $currentMembership = UserMembership::where('user_uuid', $user->uuid)
-            ->where('is_active', true)
-            ->with('membership')
-            ->first();
+        try {
+            $user = $request->user();
+            
+            // Get user's current membership
+            $currentMembership = UserMembership::where('user_uuid', $user->uuid)
+                ->where('is_active', true)
+                ->with('membership')
+                ->first();
 
-        // Get referral statistics
-        $referralStats = $this->getReferralStats($user);
+            // Get referral statistics
+            $referralStats = $this->getReferralStats($user);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'user' => [
-                    'id' => $user->id,
-                    'uuid' => $user->uuid,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'profile_image' => $user->profile_image ? $this->getProfileImageUrl($user->profile_image) : null,
-                    'referral_code' => $user->referral_code,
-                    'email_verified_at' => $user->email_verified_at,
-                    'phone_verified_at' => $user->phone_verified_at,
-                    'total_points' => $user->total_points ?? 0,
-                    'tasks_completed_today' => $user->tasks_completed_today ?? 0,
-                    'last_task_reset_date' => $user->last_task_reset_date,
-                    'created_at' => $user->created_at,
-                    'updated_at' => $user->updated_at,
-                ],
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => [
+                        'id' => $user->id,
+                        'uuid' => $user->uuid,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'phone' => $user->phone,
+                        'profile_image' => $user->profile_image ? $this->getProfileImageUrl($user->profile_image) : null,
+                        'referral_code' => $user->referral_code,
+                        'email_verified_at' => $user->email_verified_at,
+                        'phone_verified_at' => $user->phone_verified_at,
+                        'total_points' => $user->total_points ?? 0,
+                        'tasks_completed_today' => $user->tasks_completed_today ?? 0,
+                        'last_task_reset_date' => $user->last_task_reset_date,
+                        'created_at' => $user->created_at,
+                        'updated_at' => $user->updated_at,
+                    ],
                 'membership' => $currentMembership ? [
                     'id' => $currentMembership->id,
-                    'name' => $currentMembership->membership->name ?? 'Unknown',
-                    'type' => $currentMembership->membership->type ?? 'basic',
-                    'benefits' => $currentMembership->membership->benefits ?? [],
-                    'reward_multiplier' => $currentMembership->membership->reward_multiplier ?? 1.0,
-                    'priority_level' => $currentMembership->membership->priority_level ?? 1,
+                    'name' => $currentMembership->membership ? ($currentMembership->membership->membership_name ?? 'Unknown') : 'Unknown',
+                    'type' => $currentMembership->membership ? strtolower($currentMembership->membership->membership_name) : 'basic',
+                    'description' => $currentMembership->membership ? $currentMembership->membership->description : '',
+                    'tasks_per_day' => $currentMembership->membership ? $currentMembership->membership->tasks_per_day : 5,
+                    'max_tasks' => $currentMembership->membership ? $currentMembership->membership->max_tasks : 100,
+                    'price' => $currentMembership->membership ? $currentMembership->membership->price : 0.00,
+                    'benefit_amount_per_task' => $currentMembership->membership ? $currentMembership->membership->benefit_amount_per_task : 1.00,
                     'purchased_at' => $currentMembership->created_at,
                     'expires_at' => $currentMembership->expires_at,
                 ] : null,
-                'referral_stats' => $referralStats,
-            ]
-        ]);
+                    'referral_stats' => $referralStats,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('ProfileController getProfile error: ' . $e->getMessage(), [
+                'user_id' => $request->user() ? $request->user()->id : null,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve profile information',
+                'error' => 'ProfileRetrievalError'
+            ], 500);
+        }
     }
 
     /**
@@ -86,6 +101,7 @@ class ProfileController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'phone' => ['nullable', 'string', 'max:32', Rule::unique('users', 'phone')->ignore($user->id)],
             'profile_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'], // 2MB max
+            'membership_id' => ['nullable', 'integer', 'exists:memberships,id'],
         ]);
 
         // Check if email is being changed
@@ -461,19 +477,32 @@ class ProfileController extends Controller
      */
     private function getReferralStats($user)
     {
-        $totalReferrals = Referral::where('referrer_uuid', $user->uuid)->count();
-        $activeReferrals = Referral::where('referrer_uuid', $user->uuid)
-            ->where('status', 'active')
-            ->count();
-        $pendingReferrals = Referral::where('referrer_uuid', $user->uuid)
-            ->where('status', 'pending')
-            ->count();
+        try {
+            $totalReferrals = Referral::where('referrer_uuid', $user->uuid)->count();
+            $activeReferrals = Referral::where('referrer_uuid', $user->uuid)
+                ->where('status', 'active')
+                ->count();
+            $pendingReferrals = Referral::where('referrer_uuid', $user->uuid)
+                ->where('status', 'pending')
+                ->count();
 
-        return [
-            'total_referrals' => $totalReferrals,
-            'active_referrals' => $activeReferrals,
-            'pending_referrals' => $pendingReferrals,
-        ];
+            return [
+                'total_referrals' => $totalReferrals,
+                'active_referrals' => $activeReferrals,
+                'pending_referrals' => $pendingReferrals,
+            ];
+        } catch (\Exception $e) {
+            \Log::error('ProfileController getReferralStats error: ' . $e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'user_uuid' => $user->uuid ?? null
+            ]);
+            
+            return [
+                'total_referrals' => 0,
+                'active_referrals' => 0,
+                'pending_referrals' => 0,
+            ];
+        }
     }
 
     /**

@@ -29,8 +29,7 @@ class TaskDistributionService
 
             // Get all active memberships ordered by priority
             $memberships = Membership::where('is_active', true)
-                ->orderBy('distribution_priority', 'desc')
-                ->orderBy('priority_level', 'desc')
+                ->orderBy('price', 'desc')
                 ->get();
 
             foreach ($memberships as $membership) {

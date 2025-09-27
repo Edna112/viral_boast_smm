@@ -1,0 +1,186 @@
+<?php
+
+namespace Database\Seeders;
+
+use Illuminate\Database\Seeder;
+use App\Models\Task;
+
+class TaskSeeder extends Seeder
+{
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
+    {
+        // Clear existing tasks to avoid duplicates if re-running
+        Task::truncate();
+
+        // Create sample tasks with different categories and types
+        $tasks = [
+            [
+                'title' => 'Follow Instagram Account',
+                'description' => 'Follow our Instagram account and stay connected for updates',
+                'category' => 'Social Media',
+                'task_type' => 'social_media',
+                'platform' => 'Instagram',
+                'instructions' => '1. Go to the provided Instagram link 2. Click the Follow button 3. Make sure to follow the account 4. Take a screenshot of the follow confirmation',
+                'target_url' => 'https://instagram.com/viralboast',
+                'benefit' => 2.50,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'medium',
+                'threshold_value' => 100,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Like Facebook Post',
+                'description' => 'Like our latest Facebook post to show support',
+                'category' => 'Social Media',
+                'task_type' => 'social_media',
+                'platform' => 'Facebook',
+                'instructions' => '1. Visit the Facebook post link 2. Click the Like button 3. Optionally leave a positive comment 4. Take a screenshot showing the like',
+                'target_url' => 'https://facebook.com/viralboast/posts/latest',
+                'benefit' => 1.50,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'low',
+                'threshold_value' => 200,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Download Mobile App',
+                'description' => 'Download and install our mobile application',
+                'category' => 'App Download',
+                'task_type' => 'app_download',
+                'platform' => 'Mobile',
+                'instructions' => '1. Click the download link 2. Install the app on your device 3. Open the app and complete registration 4. Take a screenshot of the app home screen',
+                'target_url' => 'https://play.google.com/store/apps/details?id=com.viralboast.app',
+                'benefit' => 5.00,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'high',
+                'threshold_value' => 50,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Visit Website and Browse',
+                'description' => 'Visit our website and browse through different sections',
+                'category' => 'Website Visit',
+                'task_type' => 'website_visit',
+                'platform' => 'Web',
+                'instructions' => '1. Visit the provided website URL 2. Browse through at least 3 different pages 3. Spend at least 2 minutes on the site 4. Take a screenshot of the homepage',
+                'target_url' => 'https://viralboast.com',
+                'benefit' => 1.00,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'low',
+                'threshold_value' => 300,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Complete User Survey',
+                'description' => 'Fill out our user experience survey',
+                'category' => 'Survey',
+                'task_type' => 'survey',
+                'platform' => 'Web',
+                'instructions' => '1. Click the survey link 2. Answer all questions honestly 3. Complete the entire survey 4. Take a screenshot of the completion page',
+                'target_url' => 'https://viralboast.com/survey',
+                'benefit' => 3.00,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'medium',
+                'threshold_value' => 75,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Subscribe to YouTube Channel',
+                'description' => 'Subscribe to our YouTube channel for video content',
+                'category' => 'Social Media',
+                'task_type' => 'social_media',
+                'platform' => 'YouTube',
+                'instructions' => '1. Go to our YouTube channel 2. Click the Subscribe button 3. Turn on notifications 4. Take a screenshot showing the subscription',
+                'target_url' => 'https://youtube.com/@viralboast',
+                'benefit' => 2.00,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'medium',
+                'threshold_value' => 150,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Share Twitter Post',
+                'description' => 'Retweet and like our latest Twitter post',
+                'category' => 'Social Media',
+                'task_type' => 'social_media',
+                'platform' => 'Twitter',
+                'instructions' => '1. Visit the Twitter post link 2. Like the post 3. Retweet the post 4. Take a screenshot showing both actions',
+                'target_url' => 'https://twitter.com/viralboast/status/latest',
+                'benefit' => 1.75,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'low',
+                'threshold_value' => 250,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Join Telegram Group',
+                'description' => 'Join our Telegram group for community updates',
+                'category' => 'Social Media',
+                'task_type' => 'social_media',
+                'platform' => 'Telegram',
+                'instructions' => '1. Click the Telegram group link 2. Join the group 3. Send a greeting message 4. Take a screenshot of the group chat',
+                'target_url' => 'https://t.me/viralboast',
+                'benefit' => 2.25,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'medium',
+                'threshold_value' => 80,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Rate App on Store',
+                'description' => 'Rate and review our mobile app on the app store',
+                'category' => 'App Download',
+                'task_type' => 'app_download',
+                'platform' => 'Mobile',
+                'instructions' => '1. Download the app if not already installed 2. Open the app store 3. Rate the app with 5 stars 4. Write a positive review 5. Take a screenshot of the rating',
+                'target_url' => 'https://play.google.com/store/apps/details?id=com.viralboast.app',
+                'benefit' => 4.00,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'high',
+                'threshold_value' => 60,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+            [
+                'title' => 'Watch YouTube Video',
+                'description' => 'Watch our latest YouTube video completely',
+                'category' => 'Social Media',
+                'task_type' => 'social_media',
+                'platform' => 'YouTube',
+                'instructions' => '1. Click the video link 2. Watch the entire video 3. Like the video 4. Leave a positive comment 5. Take a screenshot showing the video and your engagement',
+                'target_url' => 'https://youtube.com/watch?v=latest',
+                'benefit' => 2.75,
+                'is_active' => true,
+                'task_status' => 'active',
+                'priority' => 'medium',
+                'threshold_value' => 120,
+                'task_completion_count' => 0,
+                'task_distribution_count' => 0,
+            ],
+        ];
+
+        foreach ($tasks as $task) {
+            Task::create($task);
+        }
+    }
+}

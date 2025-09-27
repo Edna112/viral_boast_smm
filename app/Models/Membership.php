@@ -12,15 +12,9 @@ class Membership extends Model
         'description',
         'tasks_per_day',
         'max_tasks',
-        'task_link',
-        'benefits',
         'price',
-        'reward_multiplier',
-        'priority_level',
+        'benefit_amount_per_task',
         'is_active',
-        'daily_task_limit',
-        'max_tasks_per_distribution',
-        'distribution_priority',
     ];
 
     public function users()
@@ -43,7 +37,7 @@ class Membership extends Model
     public function getEligibleUsersForDistribution()
     {
         return $this->activeUsers()
-                    ->where('users.is_active', true) // User account is active
+                    ->where('users.isActive', true) // User account is active
                     ->where('users.updated_at', '>=', now()->subDays(7)) // Active within last 7 days
                     ->whereHas('memberships', function($query) {
                         $query->where('membership_id', $this->id)
@@ -62,7 +56,7 @@ class Membership extends Model
      */
     public function getMaxTasksPerDistribution(): int
     {
-        return $this->max_tasks_per_distribution ?? 3;
+        return 3; // Default value since this column was removed
     }
 
     /**
@@ -70,7 +64,7 @@ class Membership extends Model
      */
     public function getDailyTaskLimit(): int
     {
-        return $this->daily_task_limit ?? 5;
+        return $this->tasks_per_day ?? 5;
     }
 
     /**
@@ -78,6 +72,6 @@ class Membership extends Model
      */
     public function getDistributionPriority(): int
     {
-        return $this->distribution_priority ?? 1;
+        return 1; // Default value since this column was removed
     }
 }

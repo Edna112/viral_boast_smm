@@ -547,6 +547,7 @@ class AuthController extends Controller
                 'email_verification_expires_at' => $user->email_verification_expires_at,
                 'phone_verification_expires_at' => $user->phone_verification_expires_at,
                 'remember_token' => $user->remember_token,
+                'membership' => $user->membership,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
                 'deleted_at' => $user->deleted_at,

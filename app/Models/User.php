@@ -57,35 +57,15 @@ class User extends Authenticatable
         'email',
         'phone',
         'password',
-        'email_verification_code',
-        'email_verification_expires_at',
-        'phone_verification_code',
-        'phone_verification_expires_at',
-        'phone_verified_at',
         'referral_code',
         'referred_by',
-        'total_points',
-        'tasks_completed_today',
         'total_tasks',
-        'max_direct_referrals',
-        'direct_referrals_count',
-        'indirect_referrals_count',
-        'referral_bonus_earned',
-        'direct_referral_bonus',
-        'indirect_referral_bonus',
-        'last_task_reset_date',
+        'total_completed_today',
         'profile_picture',
-        'profile_image',
-        'is_active',
-        'is_admin',
-        'deactivated_at',
-        'deactivation_reason',
-        'profile_visibility',
-        'show_email',
-        'show_phone',
-        'show_activity',
-        'email_notifications',
-        'sms_notifications',
+        'membership_level',
+        'role',
+        'isActive',
+        'lastLogin',
     ];
 
     /**
@@ -109,19 +89,11 @@ class User extends Authenticatable
     {
         return [
             'uuid' => 'string',
-            'email_verified_at' => 'datetime',
             'password' => 'hashed',
-            'email_verification_expires_at' => 'datetime',
-            'phone_verification_expires_at' => 'datetime',
-            'phone_verified_at' => 'datetime',
-            'deactivated_at' => 'datetime',
-            'is_active' => 'boolean',
-            'is_admin' => 'boolean',
-            'show_email' => 'boolean',
-            'show_phone' => 'boolean',
-            'show_activity' => 'boolean',
-            'email_notifications' => 'boolean',
-            'sms_notifications' => 'boolean',
+            'total_tasks' => 'integer',
+            'total_completed_today' => 'integer',
+            'isActive' => 'boolean',
+            'lastLogin' => 'datetime',
         ];
     }
 
@@ -133,6 +105,45 @@ class User extends Authenticatable
     public function getKey()
     {
         return $this->getAttribute($this->getKeyName());
+    }
+
+    /**
+     * Boot the model
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Generate UUID before creating
+        static::creating(function ($user) {
+            if (empty($user->uuid)) {
+                $user->uuid = (string) Str::uuid();
+            }
+        });
+
+        // Generate referral code before creating
+        static::creating(function ($user) {
+            if (empty($user->referral_code)) {
+                $user->referral_code = $user->generateUniqueReferralCode();
+            }
+        });
+
+        // Custom validation: At least one of email or phone must be provided
+        static::creating(function ($user) {
+            if (empty($user->email) && empty($user->phone)) {
+                throw new \Exception('Either email or phone number is required');
+            }
+        });
+    }
+
+    /**
+     * Remove password from JSON output
+     */
+    public function toArray()
+    {
+        $array = parent::toArray();
+        unset($array['password']);
+        return $array;
     }
 
     /**
@@ -155,24 +166,6 @@ class User extends Authenticatable
         return new \Laravel\Sanctum\NewAccessToken($token, $token->getKey() . '|' . $plainTextToken);
     }
 
-    /**
-     * Boot the model.
-     */
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($model) {
-            if (empty($model->uuid)) {
-                $model->uuid = Str::uuid();
-            }
-        });
-
-        static::created(function ($user) {
-            // Assign basic membership to new user
-            $user->assignBasicMembership();
-        });
-    }
 
     public function referrer(): BelongsTo
     {
@@ -192,6 +185,11 @@ class User extends Authenticatable
     public function account()
     {
         return $this->hasOne(Account::class, 'user_uuid', 'uuid');
+    }
+
+    public function membership()
+    {
+        return $this->belongsTo(Membership::class, 'membership_level', 'id');
     }
 
     public function memberships()
@@ -272,7 +270,7 @@ class User extends Authenticatable
     {
         // Get the basic membership
         $basicMembership = Membership::where('membership_name', 'Basic')
-            ->where('is_active', true)
+            ->where('isActive', true)
             ->first();
 
         if (!$basicMembership) {
@@ -280,31 +278,9 @@ class User extends Authenticatable
             return;
         }
 
-        // Check if user already has this membership
-        $existingMembership = $this->memberships()
-            ->where('membership_id', $basicMembership->id)
-            ->first();
-
-        if ($existingMembership) {
-            // Update existing membership to active
-            $this->memberships()->updateExistingPivot($basicMembership->id, [
-                'is_active' => true,
-                'started_at' => now(),
-                'expires_at' => null, // Basic membership doesn't expire
-                'daily_tasks_completed' => 0,
-                'last_reset_date' => now()->toDateString(),
-            ]);
-        } else {
-            // Create new membership assignment
-            $this->memberships()->attach($basicMembership->id, [
-                'started_at' => now(),
-                'expires_at' => null, // Basic membership doesn't expire
-                'is_active' => true,
-                'daily_tasks_completed' => 0,
-                'last_reset_date' => now()->toDateString(),
-            ]);
-        }
-
+        // Assign the basic membership directly to the user
+        $this->update(['membership_level' => $basicMembership->id]);
+        
         \Log::info('Basic membership assigned to user: ' . $this->uuid);
     }
 
@@ -313,13 +289,7 @@ class User extends Authenticatable
      */
     public function getCurrentMembership(): ?Membership
     {
-        return $this->memberships()
-            ->wherePivot('is_active', true)
-            ->where(function ($query) {
-                $query->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
-            ->first();
+        return $this->membership;
     }
 
     /**
@@ -346,7 +316,7 @@ class User extends Authenticatable
     public function canCompleteMoreTasks(): bool
     {
         $dailyLimit = $this->getDailyTaskLimit();
-        return $this->tasks_completed_today < $dailyLimit;
+        return $this->total_completed_today < $dailyLimit;
     }
 
     /**
@@ -364,8 +334,7 @@ class User extends Authenticatable
     {
         return [
             'total_tasks' => $this->total_tasks,
-            'tasks_completed_today' => $this->tasks_completed_today,
-            'last_task_reset_date' => $this->last_task_reset_date,
+            'total_completed_today' => $this->total_completed_today,
             'daily_task_limit' => $this->getDailyTaskLimit(),
             'can_complete_more_tasks' => $this->canCompleteMoreTasks(),
             'membership_level' => $this->getMembershipLevel(),
@@ -378,8 +347,7 @@ class User extends Authenticatable
     public function resetDailyTaskCount(): void
     {
         $this->update([
-            'tasks_completed_today' => 0,
-            'last_task_reset_date' => now()->toDateString(),
+            'total_completed_today' => 0,
         ]);
     }
 
@@ -393,7 +361,7 @@ class User extends Authenticatable
         }
 
         return self::where('referral_code', $referralCode)
-            ->where('is_active', true)
+            ->where('isActive', true)
             ->exists();
     }
 
@@ -407,7 +375,7 @@ class User extends Authenticatable
         }
 
         return self::where('referral_code', $referralCode)
-            ->where('is_active', true)
+            ->where('isActive', true)
             ->first();
     }
 
@@ -442,7 +410,7 @@ class User extends Authenticatable
             ];
         }
 
-        if (!$referrer->is_active) {
+        if (!$referrer->isActive) {
             return [
                 'valid' => false,
                 'message' => 'Referral code belongs to an inactive user',
@@ -460,9 +428,7 @@ class User extends Authenticatable
                 'name' => $referrer->name,
                 'referral_code' => $referrer->referral_code,
                 'total_referrals' => $referrer->referrals()->count(),
-                'is_active' => $referrer->is_active,
-                'max_direct_referrals' => $referrer->max_direct_referrals,
-                'direct_referrals_count' => $referrer->direct_referrals_count,
+                'isActive' => $referrer->isActive,
                 'remaining_referrals' => $referrer->getRemainingDirectReferrals(),
             ]
         ];
@@ -488,7 +454,7 @@ class User extends Authenticatable
         $totalReferrals = $this->referrals()->count();
         $activeReferrals = $this->referrals()
             ->whereHas('referredUser', function ($query) {
-                $query->where('is_active', true);
+                $query->where('isActive', true);
             })
             ->count();
 
@@ -515,53 +481,43 @@ class User extends Authenticatable
     }
 
     /**
-     * Check if user can make more direct referrals
+     * Check if user can make more direct referrals (simplified for new schema)
      */
     public function canMakeDirectReferral(): bool
     {
-        return $this->direct_referrals_count < $this->max_direct_referrals;
+        return true; // No limits in simplified schema
     }
 
     /**
-     * Get remaining direct referrals allowed
+     * Get remaining direct referrals allowed (simplified for new schema)
      */
     public function getRemainingDirectReferrals(): int
     {
-        return max(0, $this->max_direct_referrals - $this->direct_referrals_count);
+        return 999; // No limits in simplified schema
     }
 
     /**
-     * Process referral bonus for direct referral
+     * Process referral bonus for direct referral (simplified for new schema)
      */
     public function processDirectReferralBonus(User $referredUser): void
     {
-        if (!$this->canMakeDirectReferral()) {
-            \Log::warning("User {$this->uuid} has reached maximum direct referrals limit");
-            return;
-        }
-
         // Create direct referral record
         $referral = Referral::create([
             'referrer_uuid' => $this->uuid,
             'referred_user_uuid' => $referredUser->uuid,
             'referral_type' => 'direct',
-            'bonus_amount' => $this->direct_referral_bonus,
+            'bonus_amount' => 5.00, // Fixed bonus amount
             'status' => 'completed',
         ]);
-
-        // Update user counts and bonus
-        $this->increment('direct_referrals_count');
-        $this->increment('referral_bonus_earned', $this->direct_referral_bonus);
-        $this->increment('total_points', $this->direct_referral_bonus);
 
         // Mark bonus as paid
         $referral->markBonusPaid();
 
-        \Log::info("Direct referral bonus processed: {$this->direct_referral_bonus} for user {$this->uuid}");
+        \Log::info("Direct referral bonus processed: 5.00 for user {$this->uuid}");
     }
 
     /**
-     * Process referral bonus for indirect referral (Level 1)
+     * Process referral bonus for indirect referral (simplified for new schema)
      */
     public function processIndirectReferralBonus(User $referredUser): void
     {
@@ -570,19 +526,14 @@ class User extends Authenticatable
             'referrer_uuid' => $this->uuid,
             'referred_user_uuid' => $referredUser->uuid,
             'referral_type' => 'indirect',
-            'bonus_amount' => $this->indirect_referral_bonus,
+            'bonus_amount' => 2.50, // Fixed bonus amount
             'status' => 'completed',
         ]);
-
-        // Update user counts and bonus
-        $this->increment('indirect_referrals_count');
-        $this->increment('referral_bonus_earned', $this->indirect_referral_bonus);
-        $this->increment('total_points', $this->indirect_referral_bonus);
 
         // Mark bonus as paid
         $referral->markBonusPaid();
 
-        \Log::info("Indirect referral bonus processed: {$this->indirect_referral_bonus} for user {$this->uuid}");
+        \Log::info("Indirect referral bonus processed: 2.50 for user {$this->uuid}");
     }
 
     /**
@@ -596,14 +547,8 @@ class User extends Authenticatable
 
         return [
             'referral_code' => $this->referral_code,
-            'max_direct_referrals' => $this->max_direct_referrals,
-            'direct_referrals_count' => $this->direct_referrals_count,
-            'indirect_referrals_count' => $this->indirect_referrals_count,
             'remaining_direct_referrals' => $this->getRemainingDirectReferrals(),
             'can_make_direct_referral' => $this->canMakeDirectReferral(),
-            'referral_bonus_earned' => $this->referral_bonus_earned,
-            'direct_referral_bonus' => $this->direct_referral_bonus,
-            'indirect_referral_bonus' => $this->indirect_referral_bonus,
             'total_referrals' => $directReferrals + $indirectReferrals,
             'pending_referrals' => $pendingReferrals,
             'referral_url' => url('/register?ref=' . $this->referral_code),
@@ -623,19 +568,7 @@ class User extends Authenticatable
 
         $referrer = self::getByReferralCode($referralCode);
         
-        if (!$referrer->canMakeDirectReferral()) {
-            return [
-                'valid' => false,
-                'message' => 'This referrer has reached their maximum direct referrals limit',
-                'error' => 'REFERRER_LIMIT_REACHED',
-                'referrer' => [
-                    'name' => $referrer->name,
-                    'max_direct_referrals' => $referrer->max_direct_referrals,
-                    'direct_referrals_count' => $referrer->direct_referrals_count,
-                    'remaining_referrals' => $referrer->getRemainingDirectReferrals(),
-                ]
-            ];
-        }
+        // No limits in simplified schema, so always return valid
 
         return $validation;
     }

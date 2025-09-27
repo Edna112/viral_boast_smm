@@ -34,3 +34,5 @@ echo "Is active: " . ($superAdminUser->is_active ? 'Yes' : 'No') . "\n";
 
 echo "\n✅ Super admin user verification fixed!\n";
 
+
+

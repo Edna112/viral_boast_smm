@@ -11,43 +11,34 @@ class Task extends Model
     protected $fillable = [
         'title',
         'description',
-        'category_id',
+        'category',
         'task_type',
         'platform',
         'instructions',
         'target_url',
-        'requirements',
-        'reward',
-        'estimated_duration_minutes',
-        'requires_photo',
+        'benefit',
         'is_active',
         'task_status',
-        'sort_order',
+        'priority',
         'threshold_value',
         'task_completion_count',
         'task_distribution_count',
-        'distribution_threshold',
-        'completion_threshold',
-        'category'
     ];
 
     protected $casts = [
-        'requirements' => 'array',
-        'requires_photo' => 'boolean',
         'is_active' => 'boolean',
-        'reward' => 'decimal:2',
+        'benefit' => 'decimal:2',
         'task_completion_count' => 'integer',
         'task_distribution_count' => 'integer',
-        'distribution_threshold' => 'integer',
-        'completion_threshold' => 'integer'
+        'threshold_value' => 'integer',
     ];
 
     /**
-     * Get the category this task belongs to
+     * Get tasks by category (now using string category instead of foreign key)
      */
-    public function category(): BelongsTo
+    public function scopeByCategory($query, $category)
     {
-        return $this->belongsTo(TaskCategory::class, 'category_id');
+        return $query->where('category', $category);
     }
 
     /**
@@ -83,19 +74,16 @@ class Task extends Model
     }
 
     /**
-     * Scope ordered by sort order
+     * Scope ordered by priority and creation date
      */
     public function scopeOrdered($query)
     {
-        return $query->orderBy('sort_order')->orderBy('title');
-    }
-
-    /**
-     * Scope by category
-     */
-    public function scopeByCategory($query, $categoryId)
-    {
-        return $query->where('category_id', $categoryId);
+        return $query->orderByRaw("CASE priority 
+            WHEN 'urgent' THEN 1 
+            WHEN 'high' THEN 2 
+            WHEN 'medium' THEN 3 
+            WHEN 'low' THEN 4 
+            END")->orderBy('created_at', 'desc');
     }
 
     /**
@@ -107,11 +95,11 @@ class Task extends Model
     }
 
     /**
-     * Get tasks that require photo submission
+     * Scope by priority level
      */
-    public function scopeRequiresPhoto($query)
+    public function scopeByPriority($query, $priority)
     {
-        return $query->where('requires_photo', true);
+        return $query->where('priority', $priority);
     }
 
     /**
@@ -123,11 +111,11 @@ class Task extends Model
     }
 
     /**
-     * Calculate reward for a specific VIP level
+     * Calculate benefit for a specific VIP level
      */
-    public function calculateReward($vipMultiplier): float
+    public function calculateBenefit($vipMultiplier): float
     {
-        return round($this->reward * $vipMultiplier, 2);
+        return round($this->benefit * $vipMultiplier, 2);
     }
 
     /**
@@ -144,8 +132,10 @@ class Task extends Model
                 : 0,
             'distribution_count' => $this->task_distribution_count,
             'completion_count' => $this->task_completion_count,
-            'distribution_threshold' => $this->distribution_threshold,
-            'completion_threshold' => $this->completion_threshold
+            'threshold_value' => $this->threshold_value,
+            'benefit' => $this->benefit,
+            'priority' => $this->priority,
+            'task_status' => $this->task_status
         ];
     }
 
@@ -155,8 +145,9 @@ class Task extends Model
     public function canBeDistributed(): bool
     {
         return $this->is_active 
-            && $this->task_distribution_count < $this->distribution_threshold
-            && $this->task_completion_count < $this->completion_threshold;
+            && $this->task_status === 'active'
+            && $this->task_distribution_count < $this->threshold_value
+            && $this->task_completion_count < $this->threshold_value;
     }
 
     /**
@@ -164,7 +155,7 @@ class Task extends Model
      */
     public function isAtDistributionLimit(): bool
     {
-        return $this->task_distribution_count >= $this->distribution_threshold;
+        return $this->task_distribution_count >= $this->threshold_value;
     }
 
     /**
@@ -172,7 +163,7 @@ class Task extends Model
      */
     public function isAtCompletionLimit(): bool
     {
-        return $this->task_completion_count >= $this->completion_threshold;
+        return $this->task_completion_count >= $this->threshold_value;
     }
 
     /**
@@ -186,19 +177,26 @@ class Task extends Model
     /**
      * Get available tasks for distribution
      */
-    public static function getAvailableForDistribution($categoryId = null)
+    public static function getAvailableForDistribution($category = null)
     {
-        $query = self::active()->where(function($q) {
-            $q->where('task_distribution_count', '<', \DB::raw('distribution_threshold'))
-              ->where('task_completion_count', '<', \DB::raw('completion_threshold'));
-        });
+        $query = self::active()
+            ->where('task_status', 'active')
+            ->where(function($q) {
+                $q->where('task_distribution_count', '<', \DB::raw('threshold_value'))
+                  ->where('task_completion_count', '<', \DB::raw('threshold_value'));
+            });
 
-        if ($categoryId) {
-            $query->where('category_id', $categoryId);
+        if ($category) {
+            $query->where('category', $category);
         }
 
-        return $query->orderBy('sort_order', 'asc')
-                    ->orderBy('created_at', 'asc')
-                    ->get();
+        return $query->orderByRaw("CASE priority 
+            WHEN 'urgent' THEN 1 
+            WHEN 'high' THEN 2 
+            WHEN 'medium' THEN 3 
+            WHEN 'low' THEN 4 
+            END")
+            ->orderBy('created_at', 'asc')
+            ->get();
     }
 }
