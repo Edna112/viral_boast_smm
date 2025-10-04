@@ -116,6 +116,60 @@ class TaskController extends Controller
     }
 
     /**
+     * Get user's task details by task ID
+     */
+    public function getUserTaskDetails(Request $request, int $taskId): JsonResponse
+    {
+        $assignment = TaskAssignment::with(['task'])
+                                  ->where('user_uuid', $request->user()->uuid)
+                                  ->where('task_id', $taskId)
+                                  ->first();
+
+        if (!$assignment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Task not found',
+                'error' => 'TaskNotFound'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $assignment->task
+        ]);
+    }
+
+    /**
+     * Update user's task assignment by task ID
+     */
+    public function updateUserTask(Request $request, int $taskId): JsonResponse
+    {
+        $assignment = TaskAssignment::where('user_uuid', $request->user()->uuid)
+                                  ->where('task_id', $taskId)
+                                  ->first();
+
+        if (!$assignment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Task not found',
+                'error' => 'TaskNotFound'
+            ], 404);
+        }
+
+        $updateData = $request->all();
+        
+        if (!empty($updateData)) {
+            $assignment->update($updateData);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Task updated successfully',
+            'data' => $assignment->task
+        ]);
+    }
+
+    /**
      * Get available task categories
      */
     public function getCategories(): JsonResponse
@@ -146,13 +200,18 @@ class TaskController extends Controller
                             'id' => $task->id,
                             'title' => $task->title,
                             'description' => $task->description,
+                            'category' => $task->category,
+                            'task_type' => $task->task_type,
                             'platform' => $task->platform,
-                            'reward' => $task->reward,
-                            'estimated_duration_minutes' => $task->estimated_duration_minutes,
-                            'requires_photo' => $task->requires_photo,
                             'instructions' => $task->instructions,
                             'target_url' => $task->target_url,
+                            'benefit' => $task->benefit,
+                            'priority' => $task->priority,
+                            'task_status' => $task->task_status,
                             'threshold_value' => $task->threshold_value,
+                            'task_completion_count' => $task->task_completion_count,
+                            'task_distribution_count' => $task->task_distribution_count,
+                            'is_active' => $task->is_active,
                         ];
                     });
 
@@ -228,23 +287,20 @@ class TaskController extends Controller
     public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:task_categories,id',
-            'task_type' => 'required|string|in:like,follow,subscribe,comment',
-            'platform' => 'required|string|max:100',
-            'instructions' => 'nullable|string',
-            'target_url' => 'required|url',
-            'requirements' => 'nullable|array',
-            'reward' => 'required|numeric|min:0.01',
-            'estimated_duration_minutes' => 'required|integer|min:1',
-            'requires_photo' => 'boolean',
-            'is_active' => 'boolean',
-            'task_status' => 'nullable|string|in:active,pause,completed,suspended',
-            'sort_order' => 'nullable|integer',
-            'threshold_value' => 'nullable|integer|min:0',
+            'title' => 'required|string|max:100',
+            'description' => 'required|string|max:1000',
+            'category' => 'required|string|max:50',
+            'task_type' => 'required|string|in:social_media,website_visit,app_download,survey,other',
+            'platform' => 'required|string|max:50',
+            'instructions' => 'required|string|max:2000',
+            'target_url' => 'required|string|max:255',
+            'benefit' => 'required|numeric|min:0',
+            'is_active' => 'nullable|boolean',
+            'task_status' => 'nullable|string|in:pending,active,completed,cancelled',
+            'priority' => 'nullable|string|in:low,medium,high,urgent',
+            'threshold_value' => 'required|integer|min:1',
             'task_completion_count' => 'nullable|integer|min:0',
-            'category' => 'nullable|string|max:255'
+            'task_distribution_count' => 'nullable|integer|min:0',
         ]);
 
         $task = Task::create($request->all());
@@ -293,23 +349,20 @@ class TaskController extends Controller
         }
 
         $request->validate([
-            'title' => 'sometimes|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'nullable|exists:task_categories,id',
-            'task_type' => 'sometimes|string|max:100',
-            'platform' => 'sometimes|string|max:100',
-            'instructions' => 'nullable|string',
-            'target_url' => 'sometimes|url',
-            'requirements' => 'nullable|array',
-            'reward' => 'sometimes|numeric|min:0.01',
-            'estimated_duration_minutes' => 'sometimes|integer|min:1',
-            'requires_photo' => 'sometimes|boolean',
-            'is_active' => 'sometimes|boolean',
-            'task_status' => 'sometimes|string|in:active,pause,completed,suspended',
-            'sort_order' => 'nullable|integer',
-            'threshold_value' => 'nullable|integer|min:0',
+            'title' => 'sometimes|string|max:100',
+            'description' => 'sometimes|string|max:1000',
+            'category' => 'sometimes|string|max:50',
+            'task_type' => 'sometimes|string|in:social_media,website_visit,app_download,survey,other',
+            'platform' => 'sometimes|string|max:50',
+            'instructions' => 'sometimes|string|max:2000',
+            'target_url' => 'sometimes|string|max:255',
+            'benefit' => 'sometimes|numeric|min:0',
+            'is_active' => 'nullable|boolean',
+            'task_status' => 'sometimes|string|in:pending,active,completed,cancelled',
+            'priority' => 'sometimes|string|in:low,medium,high,urgent',
+            'threshold_value' => 'sometimes|integer|min:1',
             'task_completion_count' => 'nullable|integer|min:0',
-            'category' => 'nullable|string|max:255'
+            'task_distribution_count' => 'nullable|integer|min:0',
         ]);
 
         $task->update($request->all());

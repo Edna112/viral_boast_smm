@@ -40,6 +40,60 @@ class AccountController extends Controller
     }
 
     /**
+     * Update account fields
+     */
+    public function updateAccount(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'balance' => 'sometimes|numeric|min:0',
+            'total_bonus' => 'sometimes|numeric|min:0',
+            'total_withdrawals' => 'sometimes|numeric|min:0',
+            'tasks_income' => 'sometimes|numeric|min:0',
+            'referral_income' => 'sometimes|numeric|min:0',
+            'total_earned' => 'sometimes|numeric|min:0',
+            'is_active' => 'sometimes|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 400);
+        }
+
+        $user = $request->user();
+        $account = Account::getOrCreateForUser($user->uuid);
+
+        // Get only the fields that were provided in the request
+        $updateData = $request->only([
+            'balance',
+            'total_bonus', 
+            'total_withdrawals',
+            'tasks_income',
+            'referral_income',
+            'total_earned',
+            'is_active'
+        ]);
+
+        // Update last_activity_at when any field is updated
+        $updateData['last_activity_at'] = now();
+
+        if ($account->update($updateData)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Account updated successfully',
+                'data' => $account->fresh()->getAccountSummary()
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update account'
+        ], 400);
+    }
+
+    /**
      * Add funds to account
      */
     public function addFunds(Request $request): JsonResponse

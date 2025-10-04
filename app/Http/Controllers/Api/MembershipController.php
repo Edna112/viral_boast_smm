@@ -16,7 +16,7 @@ class MembershipController extends Controller
     public function index(): JsonResponse
     {
         $memberships = Membership::where('is_active', true)
-                               ->orderBy('priority_level')
+                               ->orderBy('id')
                                ->get()
                                ->map(function ($membership) {
                                    return [
@@ -25,12 +25,8 @@ class MembershipController extends Controller
                                        'description' => $membership->description,
                                        'tasks_per_day' => $membership->tasks_per_day,
                                        'max_tasks' => $membership->max_tasks,
-                                       'task_link' => $membership->task_link,
-                                       'benefits' => $membership->benefits,
                                        'price' => $membership->price,
-                                       'duration_days' => $membership->duration_days,
-                                       'reward_multiplier' => $membership->reward_multiplier,
-                                       'priority_level' => $membership->priority_level,
+                                       'benefit_amount_per_task' => $membership->benefit_amount_per_task,
                                        'is_active' => $membership->is_active,
                                        'created_at' => $membership->created_at,
                                        'updated_at' => $membership->updated_at,

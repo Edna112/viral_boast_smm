@@ -104,8 +104,17 @@ class AuthController extends Controller
 
         $user = User::create($userData);
 
-        // 7. Handle Referral Bonuses (if valid referral code was provided)
+        // 7. Assign basic membership by default
+        $this->assignBasicMembershipToUser($user);
+
+        // 8. Create account for the new user
+        $this->createUserAccount($user);
+
+        // 9. Handle Referral Bonuses (if valid referral code was provided)
         if ($referrer) {
+            // Update referrer's account balance and total_bonus by $5
+            $this->updateReferrerAccount($referrer);
+            
             // Process direct referral bonus for the referrer
             $referrer->processDirectReferralBonus($user);
             
@@ -142,10 +151,23 @@ class AuthController extends Controller
             $verificationMessage = 'Please check your phone for the verification code.';
         }
 
-        // 9. Response
+        // 9. Load membership relationship for response
+        $user->load('membership');
+
+        // 10. Response
         $responseData = [
             'userId' => $user->id,
-            'referralCode' => $newReferralCode
+            'referralCode' => $newReferralCode,
+            'membership' => $user->membership ? [
+                'id' => $user->membership->id,
+                'membership_name' => $user->membership->membership_name,
+                'description' => $user->membership->description,
+                'tasks_per_day' => $user->membership->tasks_per_day,
+                'max_tasks' => $user->membership->max_tasks,
+                'price' => $user->membership->price,
+                'benefit_amount_per_task' => $user->membership->benefit_amount_per_task,
+                'is_active' => $user->membership->is_active,
+            ] : null
         ];
 
         if (!empty($data['email'])) {
@@ -526,6 +548,9 @@ class AuthController extends Controller
         // Create API token for the session
         $token = $user->createToken('api')->plainTextToken;
 
+        // Load the membership relationship
+        $user->load('membership');
+
         // Respond with token and complete user info
         return response()->json([
             'success' => true,
@@ -538,23 +563,46 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'profile_image' => $user->profile_image,
-                'referral_code' => $user->referral_code,
-                'referred_by' => $user->referred_by,
                 'email_verified_at' => $user->email_verified_at,
                 'phone_verified_at' => $user->phone_verified_at,
-                'email_verification_code' => $user->email_verification_code,
-                'phone_verification_code' => $user->phone_verification_code,
-                'email_verification_expires_at' => $user->email_verification_expires_at,
-                'phone_verification_expires_at' => $user->phone_verification_expires_at,
-                'remember_token' => $user->remember_token,
-                'membership' => $user->membership,
+                'referral_code' => $user->referral_code,
+                'referred_by' => $user->referred_by,
+                'total_points' => $user->total_points,
+                'total_tasks' => $user->total_tasks,
+                'tasks_completed_today' => $user->tasks_completed_today,
+                'last_task_reset_date' => $user->last_task_reset_date,
+                'account_balance' => $user->account_balance,
+                'membership_level' => $user->membership_level,
+                'role' => $user->role,
+                'isActive' => $user->isActive,
+                'is_active' => $user->is_active,
+                'is_admin' => $user->is_admin,
+                'deactivated_at' => $user->deactivated_at,
+                'deactivation_reason' => $user->deactivation_reason,
+                'lastLogin' => $user->lastLogin,
+                'profile_visibility' => $user->profile_visibility,
+                'show_email' => $user->show_email,
+                'show_phone' => $user->show_phone,
+                'show_activity' => $user->show_activity,
+                'email_notifications' => $user->email_notifications,
+                'sms_notifications' => $user->sms_notifications,
                 'created_at' => $user->created_at,
                 'updated_at' => $user->updated_at,
-                'deleted_at' => $user->deleted_at,
+                // Membership relationship
+                'membership' => $user->membership ? [
+                    'id' => $user->membership->id,
+                    'membership_name' => $user->membership->membership_name,
+                    'description' => $user->membership->description,
+                    'tasks_per_day' => $user->membership->tasks_per_day,
+                    'max_tasks' => $user->membership->max_tasks,
+                    'price' => $user->membership->price,
+                    'benefit_amount_per_task' => $user->membership->benefit_amount_per_task,
+                    'is_active' => $user->membership->is_active,
+                ] : null,
                 // Computed fields for convenience
                 'emailVerified' => !is_null($user->email_verified_at),
                 'phoneVerified' => !is_null($user->phone_verified_at),
-                'isActive' => is_null($user->deleted_at),
+                'isActive' => $user->isActive,
             ],
         ]);
     }
@@ -851,6 +899,57 @@ class AuthController extends Controller
             // Log error and fallback to logging the SMS
             \Log::error("Failed to send SMS to {$phone}: " . $e->getMessage());
             \Log::info("SMS to {$phone}: {$message} (Failed to send via Twilio)");
+        }
+    }
+
+    /**
+     * Assign basic membership to a new user
+     */
+    private function assignBasicMembershipToUser(User $user): void
+    {
+        try {
+            // Find the basic membership
+            $basicMembership = \App\Models\Membership::where('membership_name', 'Basic')
+                ->where('is_active', true)
+                ->first();
+
+            if ($basicMembership) {
+                // Assign basic membership to user
+                $user->update(['membership_level' => $basicMembership->id]);
+                
+                \Log::info("Basic membership assigned to user: {$user->uuid} (Membership ID: {$basicMembership->id})");
+            } else {
+                \Log::warning("Basic membership not found when assigning to user: {$user->uuid}");
+            }
+        } catch (\Exception $e) {
+            \Log::error("Failed to assign basic membership to user {$user->uuid}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create account for new user with zero values
+     */
+    private function createUserAccount(User $user): void
+    {
+        try {
+            \App\Models\Account::createForUser($user->uuid);
+            \Log::info("Account created for user: {$user->uuid}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to create account for user {$user->uuid}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update referrer's account with $5 bonus
+     */
+    private function updateReferrerAccount(User $referrer): void
+    {
+        try {
+            $account = \App\Models\Account::getOrCreateForUser($referrer->uuid);
+            $account->addFunds(5.00, 'referral');
+            \Log::info("Referral bonus of $5 added to referrer account: {$referrer->uuid}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to update referrer account {$referrer->uuid}: " . $e->getMessage());
         }
     }
 }

@@ -6,7 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\TaskSubmission;
 use App\Models\Task;
 use App\Models\TaskAssignment;
-use App\Services\CloudinaryService;
+use App\Models\Account;
+use App\Models\Membership;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
@@ -14,12 +15,6 @@ use Illuminate\Validation\Rule;
 
 class TaskSubmissionController extends Controller
 {
-    protected $cloudinaryService;
-
-    public function __construct(CloudinaryService $cloudinaryService)
-    {
-        $this->cloudinaryService = $cloudinaryService;
-    }
 
     /**
      * Submit proof image for a completed task
@@ -31,7 +26,7 @@ class TaskSubmissionController extends Controller
         $validator = Validator::make($request->all(), [
             'task_id' => ['required', 'integer', 'exists:tasks,id'],
             'task_assignment_id' => ['nullable', 'integer', 'exists:task_assignments,id'],
-            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:5120'], // 5MB max
+            'image_url' => ['required', 'string', 'url'], // Image URL uploaded from frontend
             'description' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -75,31 +70,28 @@ class TaskSubmissionController extends Controller
         }
 
         try {
-            // Upload image to Cloudinary
-            $uploadResult = $this->cloudinaryService->uploadTaskSubmissionImage(
-                $request->file('image'),
-                $user->uuid,
-                $request->task_id
-            );
-
-            if (!$uploadResult['success']) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to upload image',
-                    'error' => $uploadResult['error']
-                ], 422);
-            }
-
-            // Create submission record
+            // Create submission record with image URL from frontend
             $submission = TaskSubmission::create([
                 'user_uuid' => $user->uuid,
                 'task_id' => $request->task_id,
                 'task_assignment_id' => $request->task_assignment_id,
-                'image_url' => $uploadResult['secure_url'],
-                'public_id' => $uploadResult['public_id'],
+                'image_url' => $request->image_url,
+                'public_id' => null, // No longer using Cloudinary public_id
                 'description' => $request->description,
                 'status' => 'pending',
             ]);
+
+            // Increment task completion count
+            $task->increment('task_completion_count');
+
+            // Increment user's daily completion count
+            $user->increment('tasks_completed_today');
+
+            // Move task from assigned_tasks to completed_tasks in user's profile
+            $user->moveTaskToCompleted($request->task_id);
+
+            // Process automatic payment based on user's membership
+            $paymentAmount = $this->processTaskPayment($user);
 
             return response()->json([
                 'success' => true,
@@ -119,16 +111,39 @@ class TaskSubmissionController extends Controller
                         'id' => $task->id,
                         'title' => $task->title,
                         'description' => $task->description,
-                        'points' => $task->points,
+                        'benefit' => $task->benefit,
+                        'task_completion_count' => $task->fresh()->task_completion_count, // Get updated count
+                    ],
+                    'user_stats' => [
+                        'tasks_completed_today' => $user->fresh()->tasks_completed_today, // Get updated count
+                        'total_points' => $user->total_points,
+                    ],
+                    'payment' => [
+                        'amount_earned' => $paymentAmount,
+                        'currency' => 'USD',
+                        'payment_type' => 'task_completion'
                     ]
                 ]
             ], 201);
 
         } catch (\Exception $e) {
+            \Log::error('Task submission error: ' . $e->getMessage(), [
+                'user_id' => $user->id ?? null,
+                'user_uuid' => $user->uuid ?? null,
+                'task_id' => $request->task_id ?? null,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => 'Failed to submit task proof',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'debug_info' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'user_uuid' => $user->uuid ?? null,
+                    'task_id' => $request->task_id ?? null
+                ]
             ], 500);
         }
     }
@@ -267,5 +282,45 @@ class TaskSubmissionController extends Controller
             'success' => true,
             'data' => $stats
         ]);
+    }
+
+    /**
+     * Process automatic payment for task completion based on user's membership
+     */
+    private function processTaskPayment($user): float
+    {
+        try {
+            // Load user's membership
+            $user->load('membership');
+            
+            if (!$user->membership) {
+                \Log::warning("No membership found for user {$user->uuid} during task payment");
+                return 0.00;
+            }
+
+            // Get the benefit amount per task from membership
+            $benefitAmount = $user->membership->benefit_amount_per_task;
+            
+            if (!$benefitAmount || $benefitAmount <= 0) {
+                \Log::warning("Invalid or zero benefit_amount_per_task for user {$user->uuid} membership {$user->membership->id}");
+                return 0.00;
+            }
+
+            // Get or create user's account
+            $account = Account::getOrCreateForUser($user->uuid);
+            
+            // Add funds to account with 'task' type
+            if ($account->addFunds($benefitAmount, 'task')) {
+                \Log::info("Task payment processed: {$benefitAmount} added to account for user {$user->uuid}");
+                return $benefitAmount;
+            } else {
+                \Log::error("Failed to add task payment to account for user {$user->uuid}");
+                return 0.00;
+            }
+
+        } catch (\Exception $e) {
+            \Log::error("Error processing task payment for user {$user->uuid}: " . $e->getMessage());
+            return 0.00;
+        }
     }
 }

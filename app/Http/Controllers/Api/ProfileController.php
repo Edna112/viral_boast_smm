@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\UserMembership;
 use App\Models\Referral;
-use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -17,12 +16,6 @@ use Carbon\Carbon;
 
 class ProfileController extends Controller
 {
-    protected $cloudinaryService;
-
-    public function __construct(CloudinaryService $cloudinaryService)
-    {
-        $this->cloudinaryService = $cloudinaryService;
-    }
 
     /**
      * Get current user's profile information
@@ -32,11 +25,22 @@ class ProfileController extends Controller
         try {
             $user = $request->user();
             
-            // Get user's current membership
-            $currentMembership = UserMembership::where('user_uuid', $user->uuid)
-                ->where('is_active', true)
-                ->with('membership')
-                ->first();
+            // Load the membership relationship (same as login route)
+            $user->load('membership');
+            
+            // Get membership with fallback if relationship fails
+            $membership = $user->membership;
+            if (!$membership && $user->membership_level) {
+                $membership = \App\Models\Membership::find($user->membership_level);
+            }
+            
+            // Debug: Log membership information
+            \Log::info('Profile Debug', [
+                'user_id' => $user->id,
+                'membership_level' => $user->membership_level,
+                'membership_loaded' => $membership ? $membership->membership_name : 'NULL',
+                'membership_id' => $membership ? $membership->id : 'NULL'
+            ]);
 
             // Get referral statistics
             $referralStats = $this->getReferralStats($user);
@@ -50,29 +54,52 @@ class ProfileController extends Controller
                         'name' => $user->name,
                         'email' => $user->email,
                         'phone' => $user->phone,
-                        'profile_image' => $user->profile_image ? $this->getProfileImageUrl($user->profile_image) : null,
-                        'referral_code' => $user->referral_code,
+                        'profile_image' => $user->profile_image,
                         'email_verified_at' => $user->email_verified_at,
                         'phone_verified_at' => $user->phone_verified_at,
-                        'total_points' => $user->total_points ?? 0,
-                        'tasks_completed_today' => $user->tasks_completed_today ?? 0,
+                        'referral_code' => $user->referral_code,
+                        'referred_by' => $user->referred_by,
+                        'total_points' => $user->total_points,
+                        'total_tasks' => $user->total_tasks,
+                        'tasks_completed_today' => $user->tasks_completed_today,
                         'last_task_reset_date' => $user->last_task_reset_date,
+                        'account_balance' => $user->account_balance,
+                        'membership_level' => $user->membership_level,
+                        'role' => $user->role,
+                        'isActive' => $user->isActive,
+                        'is_active' => $user->is_active,
+                        'is_admin' => $user->is_admin,
+                        'deactivated_at' => $user->deactivated_at,
+                        'deactivation_reason' => $user->deactivation_reason,
+                        'lastLogin' => $user->lastLogin,
+                        'profile_visibility' => $user->profile_visibility,
+                        'show_email' => $user->show_email,
+                        'show_phone' => $user->show_phone,
+                        'show_activity' => $user->show_activity,
+                        'email_notifications' => $user->email_notifications,
+                        'sms_notifications' => $user->sms_notifications,
                         'created_at' => $user->created_at,
                         'updated_at' => $user->updated_at,
+                        // Membership relationship
+                        'membership' => $membership ? [
+                            'id' => $membership->id,
+                            'membership_name' => $membership->membership_name,
+                            'description' => $membership->description,
+                            'tasks_per_day' => $membership->tasks_per_day,
+                            'max_tasks' => $membership->max_tasks,
+                            'price' => $membership->price,
+                            'benefit_amount_per_task' => $membership->benefit_amount_per_task,
+                            'is_active' => $membership->is_active,
+                        ] : null,
+                        // Computed fields for convenience
+                        'emailVerified' => !is_null($user->email_verified_at),
+                        'phoneVerified' => !is_null($user->phone_verified_at),
+                        'isActive' => $user->isActive,
                     ],
-                'membership' => $currentMembership ? [
-                    'id' => $currentMembership->id,
-                    'name' => $currentMembership->membership ? ($currentMembership->membership->membership_name ?? 'Unknown') : 'Unknown',
-                    'type' => $currentMembership->membership ? strtolower($currentMembership->membership->membership_name) : 'basic',
-                    'description' => $currentMembership->membership ? $currentMembership->membership->description : '',
-                    'tasks_per_day' => $currentMembership->membership ? $currentMembership->membership->tasks_per_day : 5,
-                    'max_tasks' => $currentMembership->membership ? $currentMembership->membership->max_tasks : 100,
-                    'price' => $currentMembership->membership ? $currentMembership->membership->price : 0.00,
-                    'benefit_amount_per_task' => $currentMembership->membership ? $currentMembership->membership->benefit_amount_per_task : 1.00,
-                    'purchased_at' => $currentMembership->created_at,
-                    'expires_at' => $currentMembership->expires_at,
-                ] : null,
                     'referral_stats' => $referralStats,
+                    'assigned_tasks' => $user->assigned_tasks ?? [],
+                    'completed_tasks' => $user->completed_tasks ?? [],
+                    'inprogress_tasks' => $user->inprogress_tasks ?? [],
                 ]
             ]);
         } catch (\Exception $e) {
@@ -97,52 +124,38 @@ class ProfileController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'phone' => ['nullable', 'string', 'max:32', Rule::unique('users', 'phone')->ignore($user->id)],
-            'profile_image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'], // 2MB max
-            'membership_id' => ['nullable', 'integer', 'exists:memberships,id'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'email' => ['sometimes', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone' => ['sometimes', 'string', 'max:32', Rule::unique('users', 'phone')->ignore($user->id)],
+            'profile_image' => ['sometimes', 'string', 'url'], // Accept image URL from frontend
+            'membership_id' => ['sometimes', 'integer', 'exists:memberships,id'],
         ]);
 
-        // Check if email is being changed
-        $emailChanged = $user->email !== $data['email'];
-        $phoneChanged = $user->phone !== $data['phone'];
+        // Check if email is being changed (only if email is provided)
+        $emailChanged = isset($data['email']) && $user->email !== $data['email'];
+        $phoneChanged = isset($data['phone']) && $user->phone !== $data['phone'];
 
-        // Handle profile image upload if provided
-        $profileImageUrl = null;
-        if ($request->hasFile('profile_image')) {
-            // Delete old profile image if exists
-            if ($user->profile_image) {
-                $this->deleteProfileImage($user->profile_image);
-            }
-
-            // Upload new profile image to Cloudinary
-            $uploadResult = $this->cloudinaryService->uploadProfileImage(
-                $request->file('profile_image'),
-                $user->uuid
-            );
-
-            if ($uploadResult['success']) {
-                $profileImageUrl = $uploadResult['secure_url'];
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to upload profile image',
-                    'error' => $uploadResult['error']
-                ], 422);
-            }
+        // Prepare update data - only include fields that are provided
+        $updateData = [];
+        
+        if (isset($data['name'])) {
+            $updateData['name'] = $data['name'];
         }
-
-        // Prepare update data
-        $updateData = [
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'phone' => $data['phone'],
-        ];
-
-        // Add profile image URL if uploaded
-        if ($profileImageUrl) {
-            $updateData['profile_image'] = $profileImageUrl;
+        
+        if (isset($data['email'])) {
+            $updateData['email'] = $data['email'];
+        }
+        
+        if (isset($data['phone'])) {
+            $updateData['phone'] = $data['phone'];
+        }
+        
+        if (isset($data['profile_image'])) {
+            $updateData['profile_image'] = $data['profile_image'];
+        }
+        
+        if (isset($data['membership_id'])) {
+            $updateData['membership_id'] = $data['membership_id'];
         }
 
         $user->update($updateData);
@@ -172,15 +185,32 @@ class ProfileController extends Controller
         $responseData = [
             'user' => [
                 'id' => $user->id,
+                'uuid' => $user->uuid,
                 'name' => $user->name,
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'profile_image' => $user->profile_image ? $this->getProfileImageUrl($user->profile_image) : null,
                 'email_verified_at' => $user->email_verified_at,
                 'phone_verified_at' => $user->phone_verified_at,
+                'referral_code' => $user->referral_code,
+                'total_points' => $user->total_points,
+                'total_tasks' => $user->total_tasks,
+                'tasks_completed_today' => $user->tasks_completed_today,
+                'account_balance' => $user->account_balance,
+                'membership_level' => $user->membership_level,
+                'role' => $user->role,
+                'isActive' => $user->isActive,
+                'is_active' => $user->is_active,
+                'is_admin' => $user->is_admin,
+                'created_at' => $user->created_at,
+                'updated_at' => $user->updated_at,
             ],
             'email_verification_required' => $emailChanged,
             'phone_verification_required' => $phoneChanged,
+            'updated_fields' => array_keys($updateData), // Show which fields were updated
+            'assigned_tasks' => $user->assigned_tasks ?? [],
+            'completed_tasks' => $user->completed_tasks ?? [],
+            'inprogress_tasks' => $user->inprogress_tasks ?? [],
         ];
 
         return response()->json([
@@ -223,59 +253,37 @@ class ProfileController extends Controller
     }
 
     /**
-     * Upload and update user's profile picture (legacy method - use updateProfile instead)
+     * Update user's profile picture URL (legacy method - use updateProfile instead)
      */
     public function updateProfilePicture(Request $request)
     {
         $user = $request->user();
 
         $request->validate([
-            'profile_image' => ['required', 'image', 'mimes:jpeg,png,jpg,gif', 'max:2048'], // 2MB max
+            'profile_image' => ['sometimes', 'string', 'url'], // Accept image URL from frontend
         ]);
 
-        // Delete old profile image if exists
-        if ($user->profile_image) {
-            $this->deleteProfileImage($user->profile_image);
-        }
-
-        // Upload new profile image to Cloudinary
-        $uploadResult = $this->cloudinaryService->uploadProfileImage(
-            $request->file('profile_image'),
-            $user->uuid
-        );
-
-        if (!$uploadResult['success']) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to upload profile image',
-                'error' => $uploadResult['error']
-            ], 422);
-        }
-
         $user->update([
-            'profile_image' => $uploadResult['secure_url'],
+            'profile_image' => $request->profile_image,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Profile image updated successfully',
             'data' => [
-                'profile_image_url' => $uploadResult['secure_url'],
+                'profile_image_url' => $request->profile_image,
             ]
         ]);
     }
 
     /**
-     * Delete user's profile image (legacy method - use updateProfile instead)
+     * Delete user's profile image URL (legacy method - use updateProfile instead)
      */
     public function deleteProfilePicture(Request $request)
     {
         $user = $request->user();
 
-        if ($user->profile_image) {
-            $this->deleteProfileImage($user->profile_image);
             $user->update(['profile_image' => null]);
-        }
 
         return response()->json([
             'success' => true,
@@ -562,22 +570,6 @@ class ProfileController extends Controller
         return Storage::url($profileImage);
     }
 
-    /**
-     * Delete profile image from storage
-     */
-    private function deleteProfileImage($profileImage)
-    {
-        // If it's a Cloudinary URL, extract public ID and delete from Cloudinary
-        if (filter_var($profileImage, FILTER_VALIDATE_URL)) {
-            $publicId = $this->cloudinaryService->extractPublicId($profileImage);
-            if ($publicId) {
-                $this->cloudinaryService->deleteImage($publicId);
-            }
-        } else {
-            // If it's a local storage path, delete from local storage
-            Storage::disk('public')->delete($profileImage);
-        }
-    }
 
     /**
      * Helper method to send email verification
@@ -612,4 +604,153 @@ class ProfileController extends Controller
             \Log::error('Failed to send email verification: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Get user's assigned tasks (all task assignments)
+     */
+    private function getUserAssignedTasks($user)
+    {
+        try {
+            $assignments = $user->taskAssignments()
+                ->with('task')
+                ->orderBy('assigned_at', 'desc')
+                ->get();
+
+            return $assignments->map(function ($assignment) {
+                return [
+                    'assignment_id' => $assignment->id,
+                    'task_id' => $assignment->task_id,
+                    'assigned_at' => $assignment->assigned_at,
+                    'expires_at' => $assignment->expires_at,
+                    'status' => $assignment->status,
+                    'base_points' => $assignment->base_points,
+                    'vip_multiplier' => $assignment->vip_multiplier,
+                    'final_reward' => $assignment->final_reward,
+                    'completed_at' => $assignment->completed_at,
+                    'completion_photo_url' => $assignment->completion_photo_url,
+                    'task' => [
+                        'id' => $assignment->task->id,
+                        'title' => $assignment->task->title,
+                        'description' => $assignment->task->description,
+                        'category' => $assignment->task->category,
+                        'task_type' => $assignment->task->task_type,
+                        'platform' => $assignment->task->platform,
+                        'instructions' => $assignment->task->instructions,
+                        'target_url' => $assignment->task->target_url,
+                        'benefit' => $assignment->task->benefit,
+                        'is_active' => $assignment->task->is_active,
+                        'task_status' => $assignment->task->task_status,
+                        'priority' => $assignment->task->priority,
+                        'threshold_value' => $assignment->task->threshold_value,
+                        'task_completion_count' => $assignment->task->task_completion_count,
+                        'task_distribution_count' => $assignment->task->task_distribution_count,
+                    ]
+                ];
+            })->toArray();
+        } catch (\Exception $e) {
+            \Log::error('Failed to get user assigned tasks: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get user's completed tasks
+     */
+    private function getUserCompletedTasks($user)
+    {
+        try {
+            $assignments = $user->taskAssignments()
+                ->with('task')
+                ->where('status', 'completed')
+                ->orderBy('completed_at', 'desc')
+                ->get();
+
+            return $assignments->map(function ($assignment) {
+                return [
+                    'assignment_id' => $assignment->id,
+                    'task_id' => $assignment->task_id,
+                    'assigned_at' => $assignment->assigned_at,
+                    'expires_at' => $assignment->expires_at,
+                    'status' => $assignment->status,
+                    'base_points' => $assignment->base_points,
+                    'vip_multiplier' => $assignment->vip_multiplier,
+                    'final_reward' => $assignment->final_reward,
+                    'completed_at' => $assignment->completed_at,
+                    'completion_photo_url' => $assignment->completion_photo_url,
+                    'task' => [
+                        'id' => $assignment->task->id,
+                        'title' => $assignment->task->title,
+                        'description' => $assignment->task->description,
+                        'category' => $assignment->task->category,
+                        'task_type' => $assignment->task->task_type,
+                        'platform' => $assignment->task->platform,
+                        'instructions' => $assignment->task->instructions,
+                        'target_url' => $assignment->task->target_url,
+                        'benefit' => $assignment->task->benefit,
+                        'is_active' => $assignment->task->is_active,
+                        'task_status' => $assignment->task->task_status,
+                        'priority' => $assignment->task->priority,
+                        'threshold_value' => $assignment->task->threshold_value,
+                        'task_completion_count' => $assignment->task->task_completion_count,
+                        'task_distribution_count' => $assignment->task->task_distribution_count,
+                    ]
+                ];
+            })->toArray();
+        } catch (\Exception $e) {
+            \Log::error('Failed to get user completed tasks: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get user's in-progress tasks (pending assignments)
+     */
+    private function getUserInProgressTasks($user)
+    {
+        try {
+            $assignments = $user->taskAssignments()
+                ->with('task')
+                ->where('status', 'pending')
+                ->orderBy('assigned_at', 'desc')
+                ->get();
+
+            return $assignments->map(function ($assignment) {
+                return [
+                    'assignment_id' => $assignment->id,
+                    'task_id' => $assignment->task_id,
+                    'assigned_at' => $assignment->assigned_at,
+                    'expires_at' => $assignment->expires_at,
+                    'status' => $assignment->status,
+                    'base_points' => $assignment->base_points,
+                    'vip_multiplier' => $assignment->vip_multiplier,
+                    'final_reward' => $assignment->final_reward,
+                    'completed_at' => $assignment->completed_at,
+                    'completion_photo_url' => $assignment->completion_photo_url,
+                    'time_remaining' => $assignment->expires_at ? $assignment->expires_at->diffForHumans() : null,
+                    'is_expired' => $assignment->expires_at ? $assignment->expires_at->isPast() : false,
+                    'task' => [
+                        'id' => $assignment->task->id,
+                        'title' => $assignment->task->title,
+                        'description' => $assignment->task->description,
+                        'category' => $assignment->task->category,
+                        'task_type' => $assignment->task->task_type,
+                        'platform' => $assignment->task->platform,
+                        'instructions' => $assignment->task->instructions,
+                        'target_url' => $assignment->task->target_url,
+                        'benefit' => $assignment->task->benefit,
+                        'is_active' => $assignment->task->is_active,
+                        'task_status' => $assignment->task->task_status,
+                        'priority' => $assignment->task->priority,
+                        'threshold_value' => $assignment->task->threshold_value,
+                        'task_completion_count' => $assignment->task->task_completion_count,
+                        'task_distribution_count' => $assignment->task->task_distribution_count,
+                    ]
+                ];
+            })->toArray();
+        } catch (\Exception $e) {
+            \Log::error('Failed to get user in-progress tasks: ' . $e->getMessage());
+            return [];
+        }
+    }
+
 }

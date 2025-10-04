@@ -78,6 +78,61 @@ class CloudinaryService
     }
 
     /**
+     * Upload base64 image to Cloudinary
+     *
+     * @param string $base64Image
+     * @param string $userId
+     * @return array
+     */
+    public function uploadBase64Image(string $base64Image, string $userId): array
+    {
+        try {
+            $publicId = 'profile_' . $userId . '_' . time();
+            
+            // Remove data:image/...;base64, prefix if present
+            if (strpos($base64Image, 'data:image/') === 0) {
+                $base64Image = substr($base64Image, strpos($base64Image, ',') + 1);
+            }
+            
+            $result = $this->uploadApi->upload(
+                'data:image/jpeg;base64,' . $base64Image,
+                [
+                    'public_id' => $publicId,
+                    'folder' => config('cloudinary.profile_images_folder', 'viral_boast/profile_images'),
+                    'transformation' => config('cloudinary.profile_image_transformations', [
+                        'width' => 400,
+                        'height' => 400,
+                        'crop' => 'fill',
+                        'gravity' => 'face',
+                        'quality' => 'auto',
+                        'format' => 'auto',
+                    ]),
+                    'resource_type' => 'image',
+                ]
+            );
+
+            return [
+                'success' => true,
+                'public_id' => $result['public_id'],
+                'secure_url' => $result['secure_url'],
+                'url' => $result['url'],
+                'width' => $result['width'],
+                'height' => $result['height'],
+                'format' => $result['format'],
+                'bytes' => $result['bytes'],
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Cloudinary base64 upload failed: ' . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Delete image from Cloudinary
      *
      * @param string $publicId
@@ -164,6 +219,61 @@ class CloudinaryService
 
         } catch (\Exception $e) {
             Log::error('Cloudinary task submission upload failed: ' . $e->getMessage());
+            
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * Upload task submission image from base64 string to Cloudinary
+     *
+     * @param string $base64Image
+     * @param string $userId
+     * @param int $taskId
+     * @return array
+     */
+    public function uploadTaskSubmissionImageFromBase64(string $base64Image, string $userId, int $taskId): array
+    {
+        try {
+            $publicId = 'task_submission_' . $userId . '_' . $taskId . '_' . time();
+            
+            // Remove data:image/...;base64, prefix if present
+            if (strpos($base64Image, 'data:image/') === 0) {
+                $base64Image = substr($base64Image, strpos($base64Image, ',') + 1);
+            }
+            
+            $result = $this->uploadApi->upload(
+                'data:image/jpeg;base64,' . $base64Image,
+                [
+                    'public_id' => $publicId,
+                    'folder' => config('cloudinary.task_submissions_folder', 'viral_boast/task_submissions'),
+                    'transformation' => config('cloudinary.task_submission_transformations', [
+                        'width' => 800,
+                        'height' => 600,
+                        'crop' => 'limit',
+                        'quality' => 'auto',
+                        'format' => 'auto',
+                    ]),
+                    'resource_type' => 'image',
+                ]
+            );
+
+            return [
+                'success' => true,
+                'public_id' => $result['public_id'],
+                'secure_url' => $result['secure_url'],
+                'url' => $result['url'],
+                'width' => $result['width'],
+                'height' => $result['height'],
+                'format' => $result['format'],
+                'bytes' => $result['bytes'],
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Cloudinary task submission base64 upload failed: ' . $e->getMessage());
             
             return [
                 'success' => false,

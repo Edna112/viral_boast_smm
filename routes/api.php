@@ -9,9 +9,10 @@ use App\Http\Controllers\Api\AdminAuthController;
 use App\Http\Controllers\Api\TaskSubmissionController;
 use App\Http\Controllers\Api\ComplaintController;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+// Commented out redundant user endpoint - use /api/v1/profile instead
+// Route::get('/user', function (Request $request) {
+//     return $request->user();
+// })->middleware('auth:sanctum');
 
 // Auth endpoints - v1 API
 Route::prefix('v1')->group(function () {
@@ -37,7 +38,8 @@ Route::prefix('v1')->group(function () {
     // Protected auth endpoints
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/auth/logout', [AuthController::class, 'logout']);
-        Route::get('/auth/me', [AuthController::class, 'me']);
+        // Commented out redundant auth/me endpoint - use /api/v1/profile instead
+        // Route::get('/auth/me', [AuthController::class, 'me']);
         
         // Referral management (authenticated endpoints)
         Route::get('/referrals/stats', [App\Http\Controllers\Api\ReferralController::class, 'getReferralStats']);
@@ -47,6 +49,7 @@ Route::prefix('v1')->group(function () {
         Route::get('/account', [App\Http\Controllers\Api\AccountController::class, 'getAccount']);
         Route::get('/account/balance', [App\Http\Controllers\Api\AccountController::class, 'getBalance']);
         Route::get('/account/financial-stats', [App\Http\Controllers\Api\AccountController::class, 'getFinancialStats']);
+        Route::patch('/account', [App\Http\Controllers\Api\AccountController::class, 'updateAccount']);
         Route::post('/account/add-funds', [App\Http\Controllers\Api\AccountController::class, 'addFunds']);
         Route::post('/account/deduct-funds', [App\Http\Controllers\Api\AccountController::class, 'deductFunds']);
         Route::post('/account/transfer', [App\Http\Controllers\Api\AccountController::class, 'transferFunds']);
@@ -97,6 +100,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::get('/complaints', [ComplaintController::class, 'getUserComplaints']);
     Route::get('/complaints/stats', [ComplaintController::class, 'getComplaintStats']);
     Route::get('/complaints/{id}', [ComplaintController::class, 'getComplaint']);
+    Route::put('/complaints/{id}', [ComplaintController::class, 'updateComplaint']);
 });
 
 // Task Management API - v1
@@ -107,6 +111,8 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::get('/tasks/completion-history', [App\Http\Controllers\Api\TaskController::class, 'getCompletionHistory']);
     Route::get('/tasks/stats', [App\Http\Controllers\Api\TaskController::class, 'getUserStats']);
     Route::get('/tasks/{assignmentId}/details', [App\Http\Controllers\Api\TaskController::class, 'getTaskDetails']);
+    Route::get('/tasks/{taskId}/user-details', [App\Http\Controllers\Api\TaskController::class, 'getUserTaskDetails']);
+    Route::put('/tasks/{taskId}/update', [App\Http\Controllers\Api\TaskController::class, 'updateUserTask']);
     
     // Membership endpoints
     Route::get('/memberships', [App\Http\Controllers\Api\MembershipController::class, 'index']);

@@ -21,78 +21,224 @@ class TaskDistributionController extends Controller
     }
 
     /**
-     * Main task distribution algorithm - single route that handles everything
+     * User-specific task assignment - assigns tasks to the authenticated user
      */
-    public function distributeTasks(): JsonResponse
+    public function distributeTasks(Request $request): JsonResponse
     {
         try {
-            $result = $this->distributionService->distributeTasksToUsers();
+            // Get authenticated user from token
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated',
+                    'data' => []
+                ], 401);
+            }
 
-            // Get the tasks that were distributed
-            $distributedTasks = [];
-            if ($result['success'] && $result['distributed_tasks'] > 0) {
-                $assignments = \App\Models\TaskAssignment::whereDate('created_at', today())
-                    ->orderBy('created_at', 'desc')
+            // Get user's membership to determine task allocation
+            $membership = $user->membership;
+            
+            if (!$membership) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User has no active membership',
+                    'data' => []
+                ], 400);
+            }
+
+            // Check if user already has tasks assigned today
+            $existingTasksToday = \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
+                ->whereDate('created_at', today())
+                ->where('status', 'pending')
+                ->count();
+
+            // If user already has their daily allocation, return existing tasks
+            if ($existingTasksToday >= $membership->tasks_per_day) {
+                $userTasks = \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
+                    ->whereDate('created_at', today())
+                    ->where('status', 'pending')
                     ->with('task')
-                    ->get();
+                    ->get()
+                    ->map(function($assignment) {
+                        return [
+                            'id' => $assignment->task->id,
+                            'title' => $assignment->task->title,
+                            'description' => $assignment->task->description,
+                            'category' => $assignment->task->category,
+                            'task_type' => $assignment->task->task_type,
+                            'platform' => $assignment->task->platform,
+                            'instructions' => $assignment->task->instructions,
+                            'target_url' => $assignment->task->target_url,
+                            'benefit' => $assignment->task->benefit,
+                            'priority' => $assignment->task->priority,
+                            'assignment_id' => $assignment->id,
+                            'assigned_at' => $assignment->created_at,
+                            'expires_at' => $assignment->expires_at
+                        ];
+                    });
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'User already has daily tasks assigned',
+                    'data' => $userTasks->toArray()
+                ]);
+            }
+
+            // Calculate how many more tasks user needs
+            $tasksNeeded = $membership->tasks_per_day - $existingTasksToday;
+
+            // Get tasks that user has never completed (to avoid re-assigning completed tasks)
+            $userCompletedTaskIds = \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
+                ->where('status', 'completed')
+                ->pluck('task_id')
+                ->toArray();
+
+            // Get available tasks (not completed by this user, not at threshold)
+            $availableTasks = Task::where('is_active', true)
+                ->where('task_status', 'active')
+                ->whereRaw('task_completion_count < threshold_value')
+                ->whereRaw('task_distribution_count < threshold_value')
+                ->whereNotIn('id', $userCompletedTaskIds) // Exclude tasks user already completed
+                ->orderByRaw("CASE priority 
+                    WHEN 'urgent' THEN 1 
+                    WHEN 'high' THEN 2 
+                    WHEN 'medium' THEN 3 
+                    WHEN 'low' THEN 4 
+                    END")
+                ->orderBy('created_at', 'asc')
+                ->limit($tasksNeeded)
+                ->get();
+
+            // Create task assignments for the user
+            $assignedTasks = [];
+            $newTaskIds = []; // Track which tasks are being assigned for the first time to this user
+            
+            foreach ($availableTasks as $task) {
+                // Check if this user has ever been assigned this task before
+                $userHasBeenAssignedThisTask = \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
+                    ->where('task_id', $task->id)
+                    ->exists();
+
+                $assignment = \App\Models\TaskAssignment::create([
+                    'user_uuid' => $user->uuid,
+                    'task_id' => $task->id,
+                    'status' => 'pending',
+                    'assigned_at' => now(),
+                    'expires_at' => now()->addDays(1), // 24 hours to complete
+                    'base_points' => $task->benefit,
+                    'vip_multiplier' => 1.0,
+                    'final_reward' => $task->benefit
+                ]);
+
+                // Only increment task_distribution_count if this is the first time this user gets this task
+                if (!$userHasBeenAssignedThisTask) {
+                    $task->increment('task_distribution_count');
+                    $newTaskIds[] = $task->id;
+                }
+
+                $assignedTasks[] = [
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'description' => $task->description,
+                    'category' => $task->category,
+                    'task_type' => $task->task_type,
+                    'platform' => $task->platform,
+                    'instructions' => $task->instructions,
+                    'target_url' => $task->target_url,
+                    'benefit' => $task->benefit,
+                    'priority' => $task->priority,
+                    'assignment_id' => $assignment->id,
+                    'assigned_at' => $assignment->created_at,
+                    'expires_at' => $assignment->expires_at,
+                    'is_new_assignment' => !$userHasBeenAssignedThisTask // Track if this is new
+                ];
+            }
+
+            // If we still need more tasks but none are available, get any remaining tasks
+            if (count($assignedTasks) < $tasksNeeded) {
+                $remainingNeeded = $tasksNeeded - count($assignedTasks);
                 
-                $distributedTasks = $assignments->map(function($assignment) {
-                    return [
+                $additionalTasks = Task::where('is_active', true)
+                    ->where('task_status', 'active')
+                    ->whereRaw('task_completion_count < threshold_value')
+                    ->whereNotIn('id', $userCompletedTaskIds) // Still exclude completed tasks
+                    ->orderByRaw("CASE priority 
+                        WHEN 'urgent' THEN 1 
+                        WHEN 'high' THEN 2 
+                        WHEN 'medium' THEN 3 
+                        WHEN 'low' THEN 4 
+                        END")
+                    ->limit($remainingNeeded)
+                    ->get();
+
+                foreach ($additionalTasks as $task) {
+                    // Check if this user has ever been assigned this task before
+                    $userHasBeenAssignedThisTask = \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
+                        ->where('task_id', $task->id)
+                        ->exists();
+
+                    $assignment = \App\Models\TaskAssignment::create([
+                        'user_uuid' => $user->uuid,
+                        'task_id' => $task->id,
+                        'status' => 'pending',
+                        'assigned_at' => now(),
+                        'expires_at' => now()->addDays(1),
+                        'base_points' => $task->benefit,
+                        'vip_multiplier' => 1.0,
+                        'final_reward' => $task->benefit
+                    ]);
+
+                    // Only increment task_distribution_count if this is the first time this user gets this task
+                    if (!$userHasBeenAssignedThisTask) {
+                        $task->increment('task_distribution_count');
+                        $newTaskIds[] = $task->id;
+                    }
+
+                    $assignedTasks[] = [
+                        'id' => $task->id,
+                        'title' => $task->title,
+                        'description' => $task->description,
+                        'category' => $task->category,
+                        'task_type' => $task->task_type,
+                        'platform' => $task->platform,
+                        'instructions' => $task->instructions,
+                        'target_url' => $task->target_url,
+                        'benefit' => $task->benefit,
+                        'priority' => $task->priority,
                         'assignment_id' => $assignment->id,
-                        'task_id' => $assignment->task_id,
-                        'user_uuid' => $assignment->user_uuid,
-                        'title' => $assignment->task->title,
-                        'description' => $assignment->task->description,
-                        'reward' => $assignment->task->reward,
-                        'platform' => $assignment->task->platform,
-                        'task_type' => $assignment->task->task_type,
-                        'assigned_at' => $assignment->assigned_at,
-                        'due_date' => $assignment->due_date,
-                        'status' => $assignment->status
+                        'assigned_at' => $assignment->created_at,
+                        'expires_at' => $assignment->expires_at,
+                        'is_new_assignment' => !$userHasBeenAssignedThisTask
                     ];
-                })->toArray();
+                }
+            }
+
+            // Save assigned tasks to user's assigned_tasks field
+            if (!empty($assignedTasks)) {
+                $user->addAssignedTasks($assignedTasks);
             }
 
             return response()->json([
-                'success' => $result['success'],
-                'message' => $result['success'] 
-                    ? 'Task distribution algorithm completed successfully' 
-                    : 'Task distribution algorithm failed',
+                'success' => true,
+                'message' => 'Tasks assigned successfully',
                 'data' => [
-                    'tasks' => $distributedTasks,
-                    'algorithm_results' => [
-                        'distributed_tasks' => $result['distributed_tasks'],
-                        'total_users_processed' => $result['total_users'],
-                        'memberships_processed' => $result['memberships_processed'],
-                        'distribution_errors' => $result['errors']
-                    ],
-                    'distribution_stats' => $this->distributionService->getDistributionStats(),
-                    'available_tasks' => Task::getAvailableForDistribution()->count(),
-                    'algorithm_checks' => [
-                        'membership_validation' => 'completed',
-                        'user_activity_check' => 'completed',
-                        'daily_limit_verification' => 'completed',
-                        'task_threshold_validation' => 'completed',
-                        'distribution_priority_processing' => 'completed'
-                    ]
+                    'assigned_tasks' => $assignedTasks,
+                    'user_assigned_tasks_count' => $user->getAssignedTasksCount(),
+                    'total_assigned_today' => count($assignedTasks),
+                    'new_task_assignments' => count($newTaskIds),
+                    'reassigned_tasks' => count($assignedTasks) - count($newTaskIds),
+                    'tasks_with_increased_distribution_count' => $newTaskIds
                 ]
-            ], $result['success'] ? 200 : 400);
+            ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Task distribution algorithm failed',
+                'message' => 'Task assignment failed',
                 'error' => $e->getMessage(),
-                'data' => [
-                    'tasks' => [],
-                    'algorithm_checks' => [
-                        'membership_validation' => 'failed',
-                        'user_activity_check' => 'failed',
-                        'daily_limit_verification' => 'failed',
-                        'task_threshold_validation' => 'failed',
-                        'distribution_priority_processing' => 'failed'
-                    ]
-                ]
+                'data' => []
             ], 500);
         }
     }

@@ -57,11 +57,33 @@ class User extends Authenticatable
         'email',
         'phone',
         'password',
+        'profile_image',
+        'assigned_tasks',
+        'completed_tasks',
+        'inprogress_tasks',
+        'email_verified_at',
+        'email_verification_code',
+        'email_verification_expires_at',
+        'phone_verified_at',
+        'phone_verification_code',
+        'phone_verification_expires_at',
         'referral_code',
         'referred_by',
+        'total_points',
         'total_tasks',
-        'total_completed_today',
-        'profile_picture',
+        'tasks_completed_today',
+        'last_task_reset_date',
+        'account_balance',
+        'is_active',
+        'is_admin',
+        'deactivated_at',
+        'deactivation_reason',
+        'profile_visibility',
+        'show_email',
+        'show_phone',
+        'show_activity',
+        'email_notifications',
+        'sms_notifications',
         'membership_level',
         'role',
         'isActive',
@@ -90,10 +112,28 @@ class User extends Authenticatable
         return [
             'uuid' => 'string',
             'password' => 'hashed',
+            'email_verified_at' => 'datetime',
+            'email_verification_expires_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'phone_verification_expires_at' => 'datetime',
+            'total_points' => 'decimal:2',
             'total_tasks' => 'integer',
-            'total_completed_today' => 'integer',
+            'tasks_completed_today' => 'integer',
+            'last_task_reset_date' => 'date',
+            'account_balance' => 'decimal:2',
+            'is_active' => 'boolean',
+            'is_admin' => 'boolean',
+            'deactivated_at' => 'datetime',
+            'show_email' => 'boolean',
+            'show_phone' => 'boolean',
+            'show_activity' => 'boolean',
+            'email_notifications' => 'boolean',
+            'sms_notifications' => 'boolean',
             'isActive' => 'boolean',
             'lastLogin' => 'datetime',
+            'assigned_tasks' => 'array',
+            'completed_tasks' => 'array',
+            'inprogress_tasks' => 'array',
         ];
     }
 
@@ -571,5 +611,85 @@ class User extends Authenticatable
         // No limits in simplified schema, so always return valid
 
         return $validation;
+    }
+
+    /**
+     * Add tasks to assigned_tasks array
+     */
+    public function addAssignedTasks(array $tasks): void
+    {
+        $currentTasks = $this->assigned_tasks ?? [];
+        $this->update(['assigned_tasks' => array_merge($currentTasks, $tasks)]);
+    }
+
+    /**
+     * Move task from assigned_tasks to completed_tasks
+     */
+    public function moveTaskToCompleted(int $taskId): void
+    {
+        $assignedTasks = $this->assigned_tasks ?? [];
+        $completedTasks = $this->completed_tasks ?? [];
+        
+        // Find the task in assigned_tasks
+        $taskToMove = null;
+        $remainingAssigned = [];
+        
+        foreach ($assignedTasks as $task) {
+            if ($task['id'] == $taskId) {
+                $taskToMove = $task;
+                // Add completion timestamp
+                $taskToMove['completed_at'] = now()->toISOString();
+                $taskToMove['status'] = 'completed';
+            } else {
+                $remainingAssigned[] = $task;
+            }
+        }
+        
+        if ($taskToMove) {
+            // Add to completed_tasks
+            $completedTasks[] = $taskToMove;
+            
+            // Update both arrays
+            $this->update([
+                'assigned_tasks' => $remainingAssigned,
+                'completed_tasks' => $completedTasks
+            ]);
+        }
+    }
+
+    /**
+     * Get assigned tasks count
+     */
+    public function getAssignedTasksCount(): int
+    {
+        return count($this->assigned_tasks ?? []);
+    }
+
+    /**
+     * Get completed tasks count
+     */
+    public function getCompletedTasksCount(): int
+    {
+        return count($this->completed_tasks ?? []);
+    }
+
+    /**
+     * Get in-progress tasks count
+     */
+    public function getInProgressTasksCount(): int
+    {
+        return count($this->inprogress_tasks ?? []);
+    }
+
+    /**
+     * Clear all task arrays (for daily reset)
+     */
+    public function clearTaskArrays(): void
+    {
+        $this->update([
+            'assigned_tasks' => [],
+            'completed_tasks' => [],
+            'inprogress_tasks' => []
+        ]);
     }
 }
