@@ -367,6 +367,272 @@ class UserController extends Controller
     }
 
     /**
+     * Permanently delete a user account (Admin only)
+     */
+    public function destroy(Request $request, string $uuid): JsonResponse
+    {
+        try {
+            $user = User::where('uuid', $uuid)->first();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found',
+                    'error' => 'UserNotFound'
+                ], 404);
+            }
+
+            // Validate confirmation
+            $data = $request->validate([
+                'confirmation' => ['required', 'string', 'in:DELETE'],
+                'reason' => ['required', 'string', 'max:500']
+            ]);
+
+            // Start database transaction
+            \DB::beginTransaction();
+
+            try {
+                // Store user data for logging before deletion
+                $userData = [
+                    'uuid' => $user->uuid,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'total_points' => $user->total_points,
+                    'account_balance' => $user->account_balance ?? 0,
+                    'created_at' => $user->created_at,
+                    'deletion_reason' => $data['reason'],
+                    'deleted_by' => $request->user()->uuid ?? 'system',
+                    'deleted_at' => now()
+                ];
+
+                // Delete related data first (to avoid foreign key constraints)
+                
+                // Delete user's personal access tokens
+                $user->tokens()->delete();
+                
+                // Delete user's account if exists
+                if ($user->account) {
+                    $user->account->delete();
+                }
+                
+                // Delete user's payments
+                $user->payments()->delete();
+                
+                // Delete user's withdrawals
+                $user->withdrawals()->delete();
+                
+                // Delete user's task assignments
+                $user->taskAssignments()->delete();
+                
+                // Delete user's referrals (both as referrer and referred)
+                $user->referrals()->delete();
+                $user->referredBy()->delete();
+                
+                // Delete user's memberships
+                $user->memberships()->detach();
+                
+                // Delete user's task submissions
+                if (method_exists($user, 'taskSubmissions')) {
+                    $user->taskSubmissions()->delete();
+                }
+                
+                // Delete user's complaints
+                if (method_exists($user, 'complaints')) {
+                    $user->complaints()->delete();
+                }
+
+                // Finally delete the user
+                $user->delete();
+
+                // Log the deletion
+                \Log::info('User permanently deleted', $userData);
+
+                // Commit transaction
+                \DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'User account permanently deleted',
+                    'data' => [
+                        'deleted_user' => [
+                            'uuid' => $userData['uuid'],
+                            'name' => $userData['name'],
+                            'email' => $userData['email'],
+                            'total_points' => $userData['total_points'],
+                            'account_balance' => $userData['account_balance'],
+                            'created_at' => $userData['created_at'],
+                            'deletion_reason' => $userData['deletion_reason'],
+                            'deleted_at' => $userData['deleted_at']
+                        ]
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                // Rollback transaction
+                \DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Failed to delete user: ' . $e->getMessage(), [
+                'user_uuid' => $uuid,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to permanently delete user account',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Permanently delete current user's own account
+     */
+    public function deleteSelf(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated',
+                    'error' => 'Unauthenticated'
+                ], 401);
+            }
+
+            // Validate confirmation
+            $data = $request->validate([
+                'confirmation' => ['required', 'string', 'in:DELETE'],
+                'reason' => ['required', 'string', 'max:500'],
+                'password' => ['required', 'string'] // Require password confirmation
+            ]);
+
+            // Verify user's password
+            if (!\Hash::check($data['password'], $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid password',
+                    'error' => 'InvalidPassword'
+                ], 400);
+            }
+
+            // Start database transaction
+            \DB::beginTransaction();
+
+            try {
+                // Store user data for logging before deletion
+                $userData = [
+                    'uuid' => $user->uuid,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'total_points' => $user->total_points,
+                    'account_balance' => $user->account_balance ?? 0,
+                    'created_at' => $user->created_at,
+                    'deletion_reason' => $data['reason'],
+                    'deleted_by' => 'self',
+                    'deleted_at' => now()
+                ];
+
+                // Delete related data first (to avoid foreign key constraints)
+                
+                // Delete user's personal access tokens
+                $user->tokens()->delete();
+                
+                // Delete user's account if exists
+                if ($user->account) {
+                    $user->account->delete();
+                }
+                
+                // Delete user's payments
+                $user->payments()->delete();
+                
+                // Delete user's withdrawals
+                $user->withdrawals()->delete();
+                
+                // Delete user's task assignments
+                $user->taskAssignments()->delete();
+                
+                // Delete user's referrals (both as referrer and referred)
+                $user->referrals()->delete();
+                $user->referredBy()->delete();
+                
+                // Delete user's memberships
+                $user->memberships()->detach();
+                
+                // Delete user's task submissions
+                if (method_exists($user, 'taskSubmissions')) {
+                    $user->taskSubmissions()->delete();
+                }
+                
+                // Delete user's complaints
+                if (method_exists($user, 'complaints')) {
+                    $user->complaints()->delete();
+                }
+
+                // Finally delete the user
+                $user->delete();
+
+                // Log the deletion
+                \Log::info('User self-deleted account', $userData);
+
+                // Commit transaction
+                \DB::commit();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Your account has been permanently deleted',
+                    'data' => [
+                        'deleted_user' => [
+                            'uuid' => $userData['uuid'],
+                            'name' => $userData['name'],
+                            'email' => $userData['email'],
+                            'total_points' => $userData['total_points'],
+                            'account_balance' => $userData['account_balance'],
+                            'created_at' => $userData['created_at'],
+                            'deletion_reason' => $userData['deletion_reason'],
+                            'deleted_at' => $userData['deleted_at']
+                        ]
+                    ]
+                ]);
+
+            } catch (\Exception $e) {
+                // Rollback transaction
+                \DB::rollBack();
+                throw $e;
+            }
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            \Log::error('Failed to self-delete user: ' . $e->getMessage(), [
+                'user_uuid' => $request->user()->uuid ?? 'unknown',
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to permanently delete your account',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Get user statistics (Admin only)
      */
     public function stats(): JsonResponse

@@ -8,6 +8,11 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminAuthController;
 use App\Http\Controllers\Api\TaskSubmissionController;
 use App\Http\Controllers\Api\ComplaintController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\AdminPaymentController;
+use App\Http\Controllers\Api\WithdrawalController;
+use App\Http\Controllers\Api\AdminWithdrawalController;
+use App\Http\Controllers\Api\PaymentDetailsController;
 
 // Commented out redundant user endpoint - use /api/v1/profile instead
 // Route::get('/user', function (Request $request) {
@@ -57,6 +62,9 @@ Route::prefix('v1')->group(function () {
         Route::post('/account/deactivate', [App\Http\Controllers\Api\AccountController::class, 'deactivateAccount']);
         Route::post('/account/activate', [App\Http\Controllers\Api\AccountController::class, 'activateAccount']);
         
+        // User account deletion
+        Route::delete('/users/me', [App\Http\Controllers\Api\UserController::class, 'deleteSelf']);
+        
         // Task distribution algorithm (single route)
         Route::get('/task-distribution/run', [App\Http\Controllers\Api\TaskDistributionController::class, 'distributeTasks']);
     });
@@ -101,6 +109,26 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::get('/complaints/stats', [ComplaintController::class, 'getComplaintStats']);
     Route::get('/complaints/{id}', [ComplaintController::class, 'getComplaint']);
     Route::put('/complaints/{id}', [ComplaintController::class, 'updateComplaint']);
+    
+    // Payments
+    Route::get('/payments', [PaymentController::class, 'index']);
+    Route::post('/payments', [PaymentController::class, 'store']);
+    Route::get('/payments/statistics', [PaymentController::class, 'statistics']);
+    Route::get('/payments/{uuid}', [PaymentController::class, 'show']);
+    Route::put('/payments/{uuid}', [PaymentController::class, 'update']);
+    Route::delete('/payments/{uuid}', [PaymentController::class, 'destroy']);
+    Route::post('/payments/{uuid}/calculate-conversion', [PaymentController::class, 'calculateConversion']);
+    Route::post('/payments/{uuid}/approve', [PaymentController::class, 'approvePayment']);
+    
+    // Withdrawals
+    Route::get('/withdrawals', [WithdrawalController::class, 'getUserWithdrawals']);
+    Route::post('/withdrawals', [WithdrawalController::class, 'createWithdrawal']);
+    Route::get('/withdrawals/{uuid}', [WithdrawalController::class, 'getWithdrawal']);
+    Route::delete('/withdrawals/{uuid}', [WithdrawalController::class, 'deleteWithdrawal']);
+    
+    // Payment Details (User can only view)
+    Route::get('/payment-details', [PaymentDetailsController::class, 'index']);
+    Route::get('/payment-details/{id}', [PaymentDetailsController::class, 'show']);
 });
 
 // Task Management API - v1
@@ -149,6 +177,27 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::put('/users/{uuid}', [UserController::class, 'update']);
     Route::post('/users/{uuid}/deactivate', [UserController::class, 'deactivate']);
     Route::post('/users/{uuid}/activate', [UserController::class, 'activate']);
+    Route::delete('/users/{uuid}', [UserController::class, 'destroy']);
+    
+    // Payment Management (Admin only)
+    Route::get('/payments', [AdminPaymentController::class, 'getAllPayments']);
+    Route::get('/payments/{uuid}', [AdminPaymentController::class, 'getPaymentById']);
+    Route::post('/payments/{uuid}/approve', [AdminPaymentController::class, 'approvePayment']);
+    Route::delete('/payments/{uuid}', [AdminPaymentController::class, 'deletePayment']);
+    
+    // Withdrawal Management (Admin only)
+    Route::get('/withdrawals', [AdminWithdrawalController::class, 'getAllWithdrawals']);
+    Route::get('/withdrawals/{uuid}', [AdminWithdrawalController::class, 'getWithdrawalById']);
+    Route::post('/withdrawals/{uuid}/complete', [AdminWithdrawalController::class, 'completeWithdrawal']);
+    Route::delete('/withdrawals/{uuid}', [AdminWithdrawalController::class, 'deleteWithdrawal']);
+    Route::put('/withdrawals/{uuid}', [AdminWithdrawalController::class, 'editWithdrawal']);
+    
+    // Payment Details Management (Admin CRUD)
+    Route::get('/payment-details', [PaymentDetailsController::class, 'index']);
+    Route::post('/payment-details', [PaymentDetailsController::class, 'store']);
+    Route::get('/payment-details/{id}', [PaymentDetailsController::class, 'show']);
+    Route::put('/payment-details/{id}', [PaymentDetailsController::class, 'update']);
+    Route::delete('/payment-details/{id}', [PaymentDetailsController::class, 'destroy']);
     
     // Task management (specific routes first)
     Route::get('/tasks/categories', [App\Http\Controllers\Api\TaskController::class, 'getCategories']);

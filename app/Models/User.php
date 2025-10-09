@@ -227,6 +227,16 @@ class User extends Authenticatable
         return $this->hasOne(Account::class, 'user_uuid', 'uuid');
     }
 
+    public function payments()
+    {
+        return $this->hasMany(Payment::class, 'user_uuid', 'uuid');
+    }
+
+    public function withdrawals()
+    {
+        return $this->hasMany(Withdrawal::class, 'user_uuid', 'uuid');
+    }
+
     public function membership()
     {
         return $this->belongsTo(Membership::class, 'membership_level', 'id');
