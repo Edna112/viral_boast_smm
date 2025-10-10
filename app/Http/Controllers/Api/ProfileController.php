@@ -63,6 +63,8 @@ class ProfileController extends Controller
                         'total_tasks' => $user->total_tasks,
                         'tasks_completed_today' => $user->tasks_completed_today,
                         'last_task_reset_date' => $user->last_task_reset_date,
+                        'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                        'last_submission_reset_date' => $user->last_submission_reset_date,
                         'account_balance' => $user->account_balance,
                         'membership_level' => $user->membership_level,
                         'role' => $user->role,

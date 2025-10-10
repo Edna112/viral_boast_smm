@@ -69,6 +69,19 @@ class TaskSubmissionController extends Controller
             ], 409);
         }
 
+        // Check if user has reached daily submission limit
+        if ($user->hasReachedDailySubmissionLimit()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You have reached your daily task submission limit',
+                'error' => 'DailySubmissionLimitReached',
+                'data' => [
+                    'daily_submissions' => $user->getDailySubmissionsCount(),
+                    'daily_limit' => $user->membership->tasks_per_day ?? 0
+                ]
+            ], 429);
+        }
+
         try {
             // Create submission record with image URL from frontend
             $submission = TaskSubmission::create([
@@ -86,6 +99,9 @@ class TaskSubmissionController extends Controller
 
             // Increment user's daily completion count
             $user->increment('tasks_completed_today');
+
+            // Increment user's daily submission count
+            $user->incrementDailySubmissions();
 
             // Move task from assigned_tasks to completed_tasks in user's profile
             $user->moveTaskToCompleted($request->task_id);
@@ -116,6 +132,7 @@ class TaskSubmissionController extends Controller
                     ],
                     'user_stats' => [
                         'tasks_completed_today' => $user->fresh()->tasks_completed_today, // Get updated count
+                        'tasks_submitted_today' => $user->fresh()->getDailySubmissionsCount(), // Get updated submission count
                         'total_points' => $user->total_points,
                     ],
                     'payment' => [
@@ -184,6 +201,9 @@ class TaskSubmissionController extends Controller
                     'pending_submissions' => TaskSubmission::where('user_uuid', $user->uuid)->pending()->count(),
                     'approved_submissions' => TaskSubmission::where('user_uuid', $user->uuid)->approved()->count(),
                     'rejected_submissions' => TaskSubmission::where('user_uuid', $user->uuid)->rejected()->count(),
+                    'daily_submissions' => $user->getDailySubmissionsCount(),
+                    'daily_submission_limit' => $user->membership->tasks_per_day ?? 0,
+                    'can_submit_more' => !$user->hasReachedDailySubmissionLimit(),
                 ]
             ]
         ]);

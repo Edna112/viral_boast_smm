@@ -149,6 +149,8 @@ class UserController extends Controller
                         'total_points' => $user->total_points,
                         'tasks_completed_today' => $user->tasks_completed_today,
                         'last_task_reset_date' => $user->last_task_reset_date,
+                        'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                        'last_submission_reset_date' => $user->last_submission_reset_date,
                         'is_active' => $user->is_active,
                         'deactivated_at' => $user->deactivated_at,
                         'deactivation_reason' => $user->deactivation_reason,
@@ -231,6 +233,10 @@ class UserController extends Controller
                         'phone' => $user->phone,
                         'is_active' => $user->is_active,
                         'total_points' => $user->total_points,
+                        'tasks_completed_today' => $user->tasks_completed_today,
+                        'last_task_reset_date' => $user->last_task_reset_date,
+                        'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                        'last_submission_reset_date' => $user->last_submission_reset_date,
                         'updated_at' => $user->updated_at,
                     ]
                 ]
@@ -295,6 +301,10 @@ class UserController extends Controller
                         'is_active' => $user->is_active,
                         'deactivated_at' => $user->deactivated_at,
                         'deactivation_reason' => $user->deactivation_reason,
+                        'tasks_completed_today' => $user->tasks_completed_today,
+                        'last_task_reset_date' => $user->last_task_reset_date,
+                        'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                        'last_submission_reset_date' => $user->last_submission_reset_date,
                     ]
                 ]
             ]);
@@ -353,6 +363,10 @@ class UserController extends Controller
                         'name' => $user->name,
                         'is_active' => $user->is_active,
                         'deactivated_at' => $user->deactivated_at,
+                        'tasks_completed_today' => $user->tasks_completed_today,
+                        'last_task_reset_date' => $user->last_task_reset_date,
+                        'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                        'last_submission_reset_date' => $user->last_submission_reset_date,
                     ]
                 ]
             ]);

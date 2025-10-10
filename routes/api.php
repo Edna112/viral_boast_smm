@@ -13,11 +13,19 @@ use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\WithdrawalController;
 use App\Http\Controllers\Api\AdminWithdrawalController;
 use App\Http\Controllers\Api\PaymentDetailsController;
+use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\NewAdminAuthController;
+use App\Http\Controllers\Api\AdminComplaintController;
 
 // Commented out redundant user endpoint - use /api/v1/profile instead
 // Route::get('/user', function (Request $request) {
 //     return $request->user();
 // })->middleware('auth:sanctum');
+
+// Debug route to test API
+Route::get('/test', function () {
+    return response()->json(['message' => 'API is working']);
+});
 
 // Auth endpoints - v1 API
 Route::prefix('v1')->group(function () {
@@ -199,6 +207,14 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::put('/payment-details/{id}', [PaymentDetailsController::class, 'update']);
     Route::delete('/payment-details/{id}', [PaymentDetailsController::class, 'destroy']);
     
+    // Complaint Management (Admin only)
+    Route::get('/complaints', [AdminComplaintController::class, 'getAllComplaints']);
+    Route::get('/complaints/stats', [AdminComplaintController::class, 'getComplaintStats']);
+    Route::get('/complaints/{id}', [AdminComplaintController::class, 'getComplaintById']);
+    Route::put('/complaints/{id}/status', [AdminComplaintController::class, 'updateComplaintStatus']);
+    Route::delete('/complaints/{id}', [AdminComplaintController::class, 'deleteComplaint']);
+    Route::post('/complaints/bulk-update', [AdminComplaintController::class, 'bulkUpdateComplaints']);
+    
     // Task management (specific routes first)
     Route::get('/tasks/categories', [App\Http\Controllers\Api\TaskController::class, 'getCategories']);
     Route::get('/tasks/available', [App\Http\Controllers\Api\TaskController::class, 'getAvailableTasks']);
@@ -213,4 +229,21 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::get('/tasks/{id}', [App\Http\Controllers\Api\TaskController::class, 'show']);
     Route::put('/tasks/{id}', [App\Http\Controllers\Api\TaskController::class, 'update']);
     Route::delete('/tasks/{id}', [App\Http\Controllers\Api\TaskController::class, 'destroy']);
+});
+
+// New Admin Management Routes (Separate Admin Table)
+Route::prefix('v1/new-admin')->group(function () {
+    // Admin Authentication
+    Route::post('/auth/login', [NewAdminAuthController::class, 'login']);
+    Route::post('/auth/logout', [NewAdminAuthController::class, 'logout'])->middleware('auth:sanctum');
+    Route::get('/auth/profile', [NewAdminAuthController::class, 'profile'])->middleware('auth:sanctum');
+    
+    // Admin CRUD Operations (Super Admin only)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/admins', [AdminController::class, 'index']);           // Get all admins
+        Route::post('/admins', [AdminController::class, 'store']);          // Create admin
+        Route::get('/admins/{id}', [AdminController::class, 'show']);         // Get specific admin
+        Route::put('/admins/{id}', [AdminController::class, 'update']);     // Update admin
+        Route::delete('/admins/{id}', [AdminController::class, 'destroy']);  // Delete admin
+    });
 });

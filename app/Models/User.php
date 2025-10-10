@@ -73,6 +73,8 @@ class User extends Authenticatable
         'total_tasks',
         'tasks_completed_today',
         'last_task_reset_date',
+        'tasks_submitted_today',
+        'last_submission_reset_date',
         'account_balance',
         'is_active',
         'is_admin',
@@ -701,5 +703,53 @@ class User extends Authenticatable
             'completed_tasks' => [],
             'inprogress_tasks' => []
         ]);
+    }
+
+    /**
+     * Increment daily task submission count
+     */
+    public function incrementDailySubmissions(): void
+    {
+        $this->checkAndResetDailySubmissions();
+        $this->increment('tasks_submitted_today');
+    }
+
+    /**
+     * Check if daily submission count needs to be reset
+     */
+    public function checkAndResetDailySubmissions(): void
+    {
+        $today = today()->toDateString();
+        
+        if (!$this->last_submission_reset_date || $this->last_submission_reset_date < $today) {
+            $this->update([
+                'tasks_submitted_today' => 0,
+                'last_submission_reset_date' => $today
+            ]);
+        }
+    }
+
+    /**
+     * Get daily submission count
+     */
+    public function getDailySubmissionsCount(): int
+    {
+        $this->checkAndResetDailySubmissions();
+        return $this->tasks_submitted_today;
+    }
+
+    /**
+     * Check if user has reached daily submission limit
+     */
+    public function hasReachedDailySubmissionLimit(): bool
+    {
+        $this->checkAndResetDailySubmissions();
+        $membership = $this->membership;
+        
+        if (!$membership) {
+            return true; // No membership = no submissions allowed
+        }
+        
+        return $this->tasks_submitted_today >= $membership->tasks_per_day;
     }
 }

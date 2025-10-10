@@ -7,6 +7,12 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+// Cron route for web-based cron services (if server cron is not available)
+Route::get('/schedule-run', function () {
+    Artisan::call('schedule:run');
+    return response()->json(['message' => 'Scheduler executed successfully', 'timestamp' => now()]);
+});
+
 // Login route for authentication middleware
 Route::get('/login', function () {
     return response()->json(['message' => 'Please login to access this resource'], 401);

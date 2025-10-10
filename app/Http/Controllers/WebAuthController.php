@@ -158,9 +158,15 @@ class WebAuthController extends Controller
                 'message' => 'Login successful',
                 'user' => [
                     'id' => Auth::user()->id,
+                    'uuid' => Auth::user()->uuid,
                     'name' => Auth::user()->name,
                     'email' => Auth::user()->email,
                     'phone' => Auth::user()->phone,
+                    'total_points' => Auth::user()->total_points,
+                    'tasks_completed_today' => Auth::user()->tasks_completed_today,
+                    'last_task_reset_date' => Auth::user()->last_task_reset_date,
+                    'tasks_submitted_today' => Auth::user()->getDailySubmissionsCount(),
+                    'last_submission_reset_date' => Auth::user()->last_submission_reset_date,
                 ],
             ]);
         }
@@ -194,8 +200,14 @@ class WebAuthController extends Controller
             'message' => 'Registration successful! Welcome to Viral Boast.',
             'user' => [
                 'id' => $user->id,
+                'uuid' => $user->uuid,
                 'name' => $user->name,
                 'phone' => $user->phone,
+                'total_points' => $user->total_points,
+                'tasks_completed_today' => $user->tasks_completed_today,
+                'last_task_reset_date' => $user->last_task_reset_date,
+                'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                'last_submission_reset_date' => $user->last_submission_reset_date,
             ],
         ], 201);
     }
@@ -222,9 +234,15 @@ class WebAuthController extends Controller
                 'message' => 'Login successful',
                 'user' => [
                     'id' => $user->id,
+                    'uuid' => $user->uuid,
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone,
+                    'total_points' => $user->total_points,
+                    'tasks_completed_today' => $user->tasks_completed_today,
+                    'last_task_reset_date' => $user->last_task_reset_date,
+                    'tasks_submitted_today' => $user->getDailySubmissionsCount(),
+                    'last_submission_reset_date' => $user->last_submission_reset_date,
                 ],
             ]);
         }

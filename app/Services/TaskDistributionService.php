@@ -337,4 +337,125 @@ class TaskDistributionService
 
         return $result;
     }
+
+    /**
+     * Assign daily tasks to all active users (called by scheduler)
+     */
+    public function assignDailyTasksToAllUsers(): array
+    {
+        $results = [
+            'users_processed' => 0,
+            'tasks_assigned' => 0,
+            'errors' => []
+        ];
+
+        try {
+            DB::beginTransaction();
+
+            // Get all active users with memberships
+            $users = User::whereHas('memberships', function($query) {
+                $query->where('user_memberships.is_active', true)
+                      ->where(function($q) {
+                          $q->whereNull('user_memberships.expires_at')
+                            ->orWhere('user_memberships.expires_at', '>', now());
+                      });
+            })->get();
+
+            foreach ($users as $user) {
+                try {
+                    $assignedCount = $this->assignDailyTasksToUser($user);
+                    $results['users_processed']++;
+                    $results['tasks_assigned'] += $assignedCount;
+                } catch (\Exception $e) {
+                    $results['errors'][] = "User {$user->uuid}: " . $e->getMessage();
+                    Log::error("Failed to assign daily tasks to user {$user->uuid}", [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            DB::commit();
+            
+            Log::info('Daily task assignment completed', $results);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $results['errors'][] = 'Daily assignment failed: ' . $e->getMessage();
+            
+            Log::error('Daily task assignment failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Assign daily tasks to a specific user
+     */
+    private function assignDailyTasksToUser(User $user): int
+    {
+        // Get user's active membership
+        $membership = $user->membership;
+        
+        if (!$membership) {
+            throw new \Exception('User has no active membership');
+        }
+
+        $tasksPerDay = $membership->tasks_per_day;
+        
+        // Check if user already has tasks assigned today
+        $existingTasksToday = TaskAssignment::where('user_uuid', $user->uuid)
+            ->whereDate('assigned_at', today())
+            ->where('status', 'pending')
+            ->count();
+
+        if ($existingTasksToday >= $tasksPerDay) {
+            return 0; // User already has their daily tasks
+        }
+
+        // Get ALL tasks this specific user has EVER been assigned
+        $userAssignedTaskIds = TaskAssignment::where('user_uuid', $user->uuid)
+            ->pluck('task_id')
+            ->toArray();
+        
+        // Calculate how many tasks user needs
+        $tasksNeeded = $tasksPerDay - $existingTasksToday;
+        
+        // Get available tasks with correct filtering
+        $availableTasks = Task::where('is_active', true)
+            ->where('task_status', 'active')
+            ->whereRaw('task_completion_count < threshold_value') // Task-level: not completed globally
+            ->whereRaw('task_distribution_count < threshold_value') // Task-level: not over-distributed globally
+            ->whereNotIn('id', $userAssignedTaskIds) // User-level: never assigned to THIS user before
+            ->orderByRaw("CASE priority 
+                WHEN 'urgent' THEN 1 
+                WHEN 'high' THEN 2 
+                WHEN 'medium' THEN 3 
+                WHEN 'low' THEN 4 
+                END")
+            ->orderBy('created_at', 'asc')
+            ->limit($tasksNeeded)
+            ->get();
+        
+        $assignedCount = 0;
+        foreach ($availableTasks as $task) {
+            TaskAssignment::create([
+                'user_uuid' => $user->uuid,
+                'task_id' => $task->id,
+                'status' => 'pending',
+                'assigned_at' => now(),
+                'expires_at' => now()->endOfDay(), // Expires at 11:59 PM
+                'base_points' => $task->benefit,
+                'vip_multiplier' => 1.0,
+                'final_reward' => $task->benefit
+            ]);
+            
+            $task->increment('task_distribution_count');
+            $assignedCount++;
+        }
+        
+        return $assignedCount;
+    }
 }
