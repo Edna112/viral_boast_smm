@@ -75,7 +75,7 @@ try {
         $testPhoneNumber,
         [
             'from' => config('services.twilio.from'),
-            'body' => "Your Viral Boast SMM verification code is: {$verificationCode}. This code expires in 2 minutes."
+            'body' => "Your PIS SMM verification code is: {$verificationCode}. This code expires in 2 minutes."
         ]
     );
     

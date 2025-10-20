@@ -28,9 +28,13 @@ class PaymentDetailsController extends Controller
     {
         $request->validate([
             'bitcoin_address' => 'nullable|string|max:255',
+            'bitcoin_instructions' => 'nullable|array',
             'ethereum_address' => 'nullable|string|max:255',
+            'ethereum_instructions' => 'nullable|array',
             'usdt_address_TRC20' => 'nullable|string|max:255',
-            'usdt_address_ERC20' => 'nullable|string|max:255'
+            'usdt_trc20_instructions' => 'nullable|array',
+            'usdt_address_ERC20' => 'nullable|string|max:255',
+            'usdt_erc20_instructions' => 'nullable|array'
         ]);
 
         $paymentDetails = PaymentDetails::create($request->all());
@@ -62,9 +66,13 @@ class PaymentDetailsController extends Controller
     {
         $request->validate([
             'bitcoin_address' => 'nullable|string|max:255',
+            'bitcoin_instructions' => 'nullable|array',
             'ethereum_address' => 'nullable|string|max:255',
+            'ethereum_instructions' => 'nullable|array',
             'usdt_address_TRC20' => 'nullable|string|max:255',
-            'usdt_address_ERC20' => 'nullable|string|max:255'
+            'usdt_trc20_instructions' => 'nullable|array',
+            'usdt_address_ERC20' => 'nullable|string|max:255',
+            'usdt_erc20_instructions' => 'nullable|array'
         ]);
 
         $paymentDetails = PaymentDetails::findOrFail($id);

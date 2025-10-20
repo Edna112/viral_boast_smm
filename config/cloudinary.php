@@ -26,9 +26,9 @@ return [
     |
     */
     
-    'default_folder' => env('CLOUDINARY_DEFAULT_FOLDER', 'viral_boast'),
-    'profile_images_folder' => env('CLOUDINARY_PROFILE_IMAGES_FOLDER', 'viral_boast_profile_images'),
-    'task_submissions_folder' => env('CLOUDINARY_TASK_SUBMISSIONS_FOLDER', 'viral_boast/task_submissions'),
+    'default_folder' => env('CLOUDINARY_DEFAULT_FOLDER', 'pis'),
+    'profile_images_folder' => env('CLOUDINARY_PROFILE_IMAGES_FOLDER', 'pis_profile_images'),
+    'task_submissions_folder' => env('CLOUDINARY_TASK_SUBMISSIONS_FOLDER', 'pis/task_submissions'),
     
     /*
     |--------------------------------------------------------------------------

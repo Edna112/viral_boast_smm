@@ -115,7 +115,7 @@ return [
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'chenwieddy@gmail.com'),
-        'name' => env('MAIL_FROM_NAME', 'Viral Boast SMM'),
+        'name' => env('MAIL_FROM_NAME', 'PIS SMM'),
     ],
 
 ];

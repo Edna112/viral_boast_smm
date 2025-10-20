@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\TaskDistributionService;
+use App\Services\EnhancedTaskAssignmentService;
 use App\Models\Task;
 use App\Models\Membership;
 use App\Models\User;
+use App\Models\TaskHistory;
 use App\Models\UserDailyTaskAssignment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -15,10 +17,12 @@ use Illuminate\Support\Facades\Validator;
 class TaskDistributionController extends Controller
 {
     protected $distributionService;
+    protected $enhancedService;
 
-    public function __construct(TaskDistributionService $distributionService)
+    public function __construct(TaskDistributionService $distributionService, EnhancedTaskAssignmentService $enhancedService)
     {
         $this->distributionService = $distributionService;
+        $this->enhancedService = $enhancedService;
     }
 
     /**
@@ -50,11 +54,53 @@ class TaskDistributionController extends Controller
                 ], 400);
             }
 
+            // Check if daily cleanup is needed (first request of the day)
+            $this->performDailyCleanupIfNeeded();
+
             // Check if user has tasks assigned for today
             $hasTasksToday = UserDailyTaskAssignment::hasTasksForToday($user->uuid);
             
             if ($hasTasksToday) {
-                // User already has tasks for today, return them
+                // Check if membership has changed since last assignment
+                $hasMembershipChanged = UserDailyTaskAssignment::hasMembershipChanged(
+                    $user->uuid, 
+                    $membership->id, 
+                    $membership->tasks_per_day
+                );
+                
+                if ($hasMembershipChanged) {
+                    // Get existing assignment to remove old tasks
+                    $todayAssignment = UserDailyTaskAssignment::getTodayAssignment($user->uuid);
+                    $assignedTaskIds = $todayAssignment->assigned_task_ids ?? [];
+                    $previousCount = count($assignedTaskIds);
+                    
+                    // Remove existing assignments for today
+                    \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
+                        ->whereIn('task_id', $assignedTaskIds)
+                        ->where('status', 'pending')
+                        ->delete();
+                    
+                    // Delete today's assignment record
+                    $todayAssignment->delete();
+                    
+                    // Assign new tasks based on current membership
+                    $assignedTasks = $this->assignNewDailyTasks($user, $membership);
+                    
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'Tasks reassigned based on membership upgrade',
+                        'data' => [
+                            'assigned_tasks' => $assignedTasks,
+                            'total_assigned' => count($assignedTasks),
+                            'membership_changed' => true,
+                            'previous_count' => $previousCount,
+                            'new_count' => $membership->tasks_per_day,
+                            'assignment_date' => today()->toDateString()
+                        ]
+                    ]);
+                }
+                
+                // Membership hasn't changed, return existing tasks
                 $todayAssignment = UserDailyTaskAssignment::getTodayAssignment($user->uuid);
                 $assignedTaskIds = $todayAssignment->assigned_task_ids ?? [];
                 
@@ -177,7 +223,12 @@ class TaskDistributionController extends Controller
         }
 
         // Record today's assignment in UserDailyTaskAssignment
-        UserDailyTaskAssignment::createOrUpdateToday($user->uuid, $assignedTaskIds);
+        UserDailyTaskAssignment::createOrUpdateToday(
+            $user->uuid, 
+            $assignedTaskIds, 
+            $membership->id, 
+            $membership->tasks_per_day
+        );
 
         return $assignedTasks;
     }
@@ -345,6 +396,7 @@ class TaskDistributionController extends Controller
                     'last_activity_at' => $user->last_activity_at,
                     'active_membership' => $activeMembership ? [
                         'name' => $activeMembership->membership_name,
+                        'membership_icon' => $activeMembership->membership_icon,
                         'daily_task_limit' => $activeMembership->getDailyTaskLimit(),
                         'max_tasks_per_distribution' => $activeMembership->getMaxTasksPerDistribution()
                     ] : null
@@ -454,6 +506,207 @@ class TaskDistributionController extends Controller
                 'success' => false,
                 'message' => 'Failed to reset distribution counts',
                 'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Perform daily cleanup if needed (first request of the day)
+     * Archives all task submissions to task_history table
+     */
+    private function performDailyCleanupIfNeeded(): void
+    {
+        try {
+            // Check if cleanup has already been done today
+            $lastCleanupDate = \Cache::get('last_daily_cleanup_date');
+            $today = now()->toDateString();
+            
+            if ($lastCleanupDate === $today) {
+                // Cleanup already done today, skip
+                return;
+            }
+            
+            // Check if there are any submissions to archive
+            $submissionCount = \App\Models\TaskSubmission::count();
+            
+            if ($submissionCount === 0) {
+                // No submissions to archive, just mark cleanup as done
+                \Cache::put('last_daily_cleanup_date', $today, now()->addDay());
+                return;
+            }
+            
+            // Perform the archive operation
+            $archiveResults = TaskHistory::archiveSubmissions();
+            
+            // Log the cleanup operation
+            \Log::info('Daily task submission cleanup completed', [
+                'date' => $today,
+                'archived_count' => $archiveResults['archived_count'],
+                'errors' => $archiveResults['errors']
+            ]);
+            
+            // Mark cleanup as completed for today
+            \Cache::put('last_daily_cleanup_date', $today, now()->addDay());
+            
+            // Log success message
+            if ($archiveResults['archived_count'] > 0) {
+                \Log::info("Archived {$archiveResults['archived_count']} task submissions to history table");
+            }
+            
+        } catch (\Exception $e) {
+            \Log::error('Daily cleanup failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }
+
+    /**
+     * Enhanced daily task assignment for all users
+     * Uses the new algorithm with precise requirements
+     */
+    public function assignDailyTasksEnhanced(): JsonResponse
+    {
+        try {
+            $results = $this->enhancedService->assignDailyTasks();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Enhanced daily task assignment completed',
+                'data' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Enhanced daily task assignment failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign tasks to a specific user using enhanced algorithm
+     */
+    public function assignTasksToUserEnhanced(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            $assignedCount = $this->enhancedService->assignTasksToUser($user);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Tasks assigned successfully',
+                'data' => [
+                    'user_uuid' => $user->uuid,
+                    'assigned_tasks' => $assignedCount,
+                    'assignment_date' => today()->toDateString()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Task assignment failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Assign tasks to new user using enhanced algorithm
+     */
+    public function assignTasksToNewUser(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'user_uuid' => 'required|string|exists:users,uuid'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = User::where('uuid', $request->user_uuid)->first();
+            $result = $this->enhancedService->assignTasksToNewUser($user);
+
+            return response()->json([
+                'success' => $result['success'],
+                'message' => $result['success'] ? 'Tasks assigned to new user' : 'Failed to assign tasks',
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'New user task assignment failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get user's task assignment status
+     */
+    public function getUserTaskStatus(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            $status = $this->enhancedService->getUserTaskStatus($user);
+
+            return response()->json([
+                'success' => true,
+                'data' => $status
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get user task status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset daily task assignments
+     */
+    public function resetDailyAssignments(): JsonResponse
+    {
+        try {
+            $results = $this->enhancedService->resetDailyAssignments();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Daily assignments reset successfully',
+                'data' => $results
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reset daily assignments: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get enhanced task distribution statistics
+     */
+    public function getEnhancedDistributionStats(): JsonResponse
+    {
+        try {
+            $stats = $this->enhancedService->getDistributionStats();
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get distribution stats: ' . $e->getMessage()
             ], 500);
         }
     }

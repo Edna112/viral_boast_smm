@@ -9,6 +9,7 @@ class Membership extends Model
     protected $table = 'membership';
     protected $fillable = [
         'membership_name',
+        'membership_icon',
         'description',
         'tasks_per_day',
         'max_tasks',

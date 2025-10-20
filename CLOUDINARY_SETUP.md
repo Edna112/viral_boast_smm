@@ -30,8 +30,8 @@ CLOUDINARY_CLOUD_NAME=your_cloud_name_here
 CLOUDINARY_API_KEY=your_api_key_here
 CLOUDINARY_API_SECRET=your_api_secret_here
 CLOUDINARY_SECURE=true
-CLOUDINARY_DEFAULT_FOLDER=viral_boast
-CLOUDINARY_PROFILE_IMAGES_FOLDER=viral_boast/profile_images
+CLOUDINARY_DEFAULT_FOLDER=pis
+CLOUDINARY_PROFILE_IMAGES_FOLDER=pis/profile_images
 ```
 
 ### **3. Install Dependencies**
@@ -74,7 +74,7 @@ The following files have been created/updated:
 ## 📁 **File Structure**
 
 ```
-viral_boast_smm/
+pis_smm/
 ├── config/
 │   └── cloudinary.php              ← Cloudinary configuration
 ├── app/
@@ -109,7 +109,7 @@ Authorization: Bearer {token}
     "message": "Profile updated successfully",
     "data": {
         "user": {
-            "profile_image": "https://res.cloudinary.com/your_cloud/image/upload/v1234567890/viral_boast/profile_images/profile_uuid_timestamp.jpg"
+            "profile_image": "https://res.cloudinary.com/your_cloud/image/upload/v1234567890/pis/profile_images/profile_uuid_timestamp.jpg"
         }
     }
 }

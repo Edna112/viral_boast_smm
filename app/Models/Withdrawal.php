@@ -39,6 +39,9 @@ class Withdrawal extends Model
         'user_uuid',
         'withdrawal_amount',
         'platform',
+        'account_details',
+        'wallet_address',
+        'address_type',
         'picture_path',
         'is_completed',
     ];

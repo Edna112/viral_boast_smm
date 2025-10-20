@@ -43,7 +43,7 @@ class CloudinaryService
                 $file->getRealPath(),
                 [
                     'public_id' => $publicId,
-                    'folder' => config('cloudinary.profile_images_folder', 'viral_boast/profile_images'),
+                    'folder' => config('cloudinary.profile_images_folder', 'pis/profile_images'),
                     'transformation' => config('cloudinary.profile_image_transformations', [
                         'width' => 400,
                         'height' => 400,
@@ -98,7 +98,7 @@ class CloudinaryService
                 'data:image/jpeg;base64,' . $base64Image,
                 [
                     'public_id' => $publicId,
-                    'folder' => config('cloudinary.profile_images_folder', 'viral_boast/profile_images'),
+                    'folder' => config('cloudinary.profile_images_folder', 'pis/profile_images'),
                     'transformation' => config('cloudinary.profile_image_transformations', [
                         'width' => 400,
                         'height' => 400,
@@ -194,7 +194,7 @@ class CloudinaryService
                 $file->getRealPath(),
                 [
                     'public_id' => $publicId,
-                    'folder' => config('cloudinary.task_submissions_folder', 'viral_boast/task_submissions'),
+                    'folder' => config('cloudinary.task_submissions_folder', 'pis/task_submissions'),
                     'transformation' => config('cloudinary.task_submission_transformations', [
                         'width' => 800,
                         'height' => 600,
@@ -249,7 +249,7 @@ class CloudinaryService
                 'data:image/jpeg;base64,' . $base64Image,
                 [
                     'public_id' => $publicId,
-                    'folder' => config('cloudinary.task_submissions_folder', 'viral_boast/task_submissions'),
+                    'folder' => config('cloudinary.task_submissions_folder', 'pis/task_submissions'),
                     'transformation' => config('cloudinary.task_submission_transformations', [
                         'width' => 800,
                         'height' => 600,

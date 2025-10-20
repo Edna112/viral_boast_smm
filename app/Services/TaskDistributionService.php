@@ -261,6 +261,7 @@ class TaskDistributionService
             
             $stats['memberships'][] = [
                 'name' => $membership->membership_name,
+                'membership_icon' => $membership->membership_icon,
                 'eligible_users' => $eligibleUsers->count(),
                 'daily_task_limit' => $membership->getDailyTaskLimit(),
                 'max_tasks_per_distribution' => $membership->getMaxTasksPerDistribution(),

@@ -1,4 +1,4 @@
-# cPanel Configuration Guide for Viral Boast SMM
+# cPanel Configuration Guide for PIS SMM
 
 ## Database Configuration
 
@@ -7,7 +7,7 @@ Since cPanel uses MySQL, you need to create a `.env` file in your project root w
 ### .env File Content
 
 ```env
-APP_NAME="Viral Boast SMM"
+APP_NAME="PIS SMM"
 APP_ENV=production
 APP_KEY=base64:your-app-key-here
 APP_DEBUG=false
@@ -52,28 +52,30 @@ SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,your-domain.com
 
 1. **Create .env file** in your project root with the above content
 2. **Replace the following values** with your actual cPanel details:
-   - `your_database_name` - Your MySQL database name from cPanel
-   - `your_username` - Your MySQL username from cPanel
-   - `your_password` - Your MySQL password from cPanel
-   - `your-domain.com` - Your actual domain name
-   - `your-app-key-here` - Generate with: `php artisan key:generate`
+
+    - `your_database_name` - Your MySQL database name from cPanel
+    - `your_username` - Your MySQL username from cPanel
+    - `your_password` - Your MySQL password from cPanel
+    - `your-domain.com` - Your actual domain name
+    - `your-app-key-here` - Generate with: `php artisan key:generate`
 
 3. **Generate Application Key**:
-   ```bash
-   php artisan key:generate
-   ```
+
+    ```bash
+    php artisan key:generate
+    ```
 
 4. **Run Migrations**:
-   ```bash
-   php artisan migrate
-   ```
+    ```bash
+    php artisan migrate
+    ```
 
 ## Important Notes
 
-- **Session Driver**: Set to `file` to avoid MySQL connection issues
-- **Cache Store**: Set to `file` to avoid MySQL connection issues
-- **Database**: Uses MySQL as configured in cPanel
-- **Primary Key**: Fixed to use `uuid` instead of `id` for users table
+-   **Session Driver**: Set to `file` to avoid MySQL connection issues
+-   **Cache Store**: Set to `file` to avoid MySQL connection issues
+-   **Database**: Uses MySQL as configured in cPanel
+-   **Primary Key**: Fixed to use `uuid` instead of `id` for users table
 
 ## Fixed Issues
 
@@ -85,28 +87,10 @@ SANCTUM_STATEFUL_DOMAINS=localhost,127.0.0.1,your-domain.com
 ## Testing
 
 After configuration, test the connection with:
+
 ```bash
 php artisan tinker
 >>> DB::connection()->getPdo();
 ```
 
 This should return a PDO object if the connection is successful.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

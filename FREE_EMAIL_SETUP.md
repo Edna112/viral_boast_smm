@@ -20,7 +20,7 @@ MAIL_USERNAME=your-email@gmail.com
 MAIL_PASSWORD=your-16-character-app-password
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=your-email@gmail.com
-MAIL_FROM_NAME="Viral Boast SMM"
+MAIL_FROM_NAME="PIS SMM"
 ```
 
 ### Limits:
@@ -42,7 +42,7 @@ MAIL_USERNAME=your-email@outlook.com
 MAIL_PASSWORD=your-password
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=your-email@outlook.com
-MAIL_FROM_NAME="Viral Boast SMM"
+MAIL_FROM_NAME="PIS SMM"
 ```
 
 ### Limits:
@@ -69,7 +69,7 @@ MAIL_USERNAME=apikey
 MAIL_PASSWORD=your-sendgrid-api-key
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=noreply@yourdomain.com
-MAIL_FROM_NAME="Viral Boast SMM"
+MAIL_FROM_NAME="PIS SMM"
 ```
 
 ### Limits:
@@ -91,7 +91,7 @@ MAIL_USERNAME=your-mailtrap-username
 MAIL_PASSWORD=your-mailtrap-password
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=test@example.com
-MAIL_FROM_NAME="Viral Boast SMM"
+MAIL_FROM_NAME="PIS SMM"
 ```
 
 ### Limits:
@@ -113,7 +113,7 @@ MAIL_USERNAME=your-business-email@gmail.com
 MAIL_PASSWORD=your-app-password
 MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS=your-business-email@gmail.com
-MAIL_FROM_NAME="Viral Boast SMM"
+MAIL_FROM_NAME="PIS SMM"
 ```
 
 ### Benefits:
@@ -129,15 +129,3 @@ MAIL_FROM_NAME="Viral Boast SMM"
 -   Start with Gmail SMTP
 -   Upgrade to Google Workspace ($6/month) for 2,000 emails/day
 -   Or switch to SendGrid when you need more volume
-
-
-
-
-
-
-
-
-
-
-
-

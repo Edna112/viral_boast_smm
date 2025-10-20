@@ -31,7 +31,7 @@ class VerificationCodeMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your Verification Code - Viral Boast SMM',
+            subject: 'Your Verification Code - PIS SMM',
         );
     }
 

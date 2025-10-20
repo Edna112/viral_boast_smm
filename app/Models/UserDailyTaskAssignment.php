@@ -12,6 +12,8 @@ class UserDailyTaskAssignment extends Model
         'assignment_date',
         'tasks_assigned_count',
         'assigned_task_ids',
+        'membership_id',
+        'membership_tasks_per_day',
     ];
 
     protected $casts = [
@@ -50,7 +52,7 @@ class UserDailyTaskAssignment extends Model
     /**
      * Create or update today's assignment
      */
-    public static function createOrUpdateToday(string $userUuid, array $taskIds): self
+    public static function createOrUpdateToday(string $userUuid, array $taskIds, $membershipId = null, $tasksPerDay = null): self
     {
         return self::updateOrCreate(
             [
@@ -60,7 +62,24 @@ class UserDailyTaskAssignment extends Model
             [
                 'tasks_assigned_count' => count($taskIds),
                 'assigned_task_ids' => $taskIds,
+                'membership_id' => $membershipId,
+                'membership_tasks_per_day' => $tasksPerDay,
             ]
         );
+    }
+
+    /**
+     * Check if membership has changed since last assignment
+     */
+    public static function hasMembershipChanged(string $userUuid, $currentMembershipId, $currentTasksPerDay): bool
+    {
+        $todayAssignment = self::getTodayAssignment($userUuid);
+        
+        if (!$todayAssignment) {
+            return true; // No assignment exists, so it's a change
+        }
+        
+        return $todayAssignment->membership_id !== $currentMembershipId || 
+               $todayAssignment->membership_tasks_per_day !== $currentTasksPerDay;
     }
 }

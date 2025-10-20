@@ -131,18 +131,18 @@ class AuthController extends Controller
         if (!empty($data['email'])) {
             // Send verification code via email using Mailgun
             $emailContent = "
-                <h2>Welcome to Viral Boast SMM!</h2>
+                <h2>Welcome to PIS SMM!</h2>
                 <p>Hello {$user->name},</p>
                 <p>Your verification code is: <strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
                 <p>This code will expire in 2 minutes.</p>
                 <p>If you didn't request this code, please ignore this email.</p>
                 <br>
-                <p>Best regards,<br>Viral Boast SMM Team</p>
+                <p>Best regards,<br>PIS SMM Team</p>
             ";
             
             Mail::html($emailContent, function ($message) use ($user) {
                 $message->to($user->email)
-                    ->subject('Your Verification Code - Viral Boast SMM');
+                    ->subject('Your Verification Code - PIS SMM');
             });
             $verificationMessage = 'Please check your email to verify your account.';
         } else {
@@ -248,16 +248,16 @@ class AuthController extends Controller
             ], 200);
         }
 
-        // Check for rate limiting (max 5 attempts per 15 minutes)
+        // Check for rate limiting (max 10 attempts per 10 minutes)
         $attemptsKey = 'verification_attempts_' . ($isEmailVerification ? $user->email : $user->phone);
         $attempts = cache()->get($attemptsKey, 0);
         
-        if ($attempts >= 5) {
+        if ($attempts >= 10) {
             return response()->json([
                 'success' => false,
                 'message' => 'Too many verification attempts. Please try again later.',
                 'error' => 'RateLimitExceeded',
-                'retry_after_minutes' => 15
+                'retry_after_minutes' => 10
             ], 429);
         }
 
@@ -296,10 +296,10 @@ class AuthController extends Controller
         }
 
         // Increment attempts counter
-        cache()->put($attemptsKey, $attempts + 1, 900); // 15 minutes
+        cache()->put($attemptsKey, $attempts + 1, 600); // 10 minutes
 
         if (!$isValidCode) {
-            $remainingAttempts = 5 - ($attempts + 1);
+            $remainingAttempts = 10 - ($attempts + 1);
             $message = 'Invalid or expired verification code';
             
             if ($remainingAttempts > 0) {
@@ -399,16 +399,16 @@ class AuthController extends Controller
             ], 200);
         }
 
-        // Rate limiting for resend requests (max 3 requests per 15 minutes)
+        // Rate limiting for resend requests (max 5 requests per 10 minutes)
         $resendKey = 'resend_attempts_' . ($isEmailVerification ? $user->email : $user->phone);
         $resendAttempts = cache()->get($resendKey, 0);
         
-        if ($resendAttempts >= 3) {
+        if ($resendAttempts >= 5) {
             return response()->json([
                 'success' => false,
                 'message' => 'Too many resend requests. Please try again later.',
                 'error' => 'ResendRateLimitExceeded',
-                'retry_after_minutes' => 15
+                'retry_after_minutes' => 10
             ], 429);
         }
 
@@ -426,7 +426,7 @@ class AuthController extends Controller
         }
 
         // Increment resend attempts counter
-        cache()->put($resendKey, $resendAttempts + 1, 120); // 2 minutes
+        cache()->put($resendKey, $resendAttempts + 1, 600); // 10 minutes
 
         // Generate new code with a new 2-minute expiration
         $verificationCode = random_int(100000, 999999);
@@ -455,12 +455,12 @@ class AuthController extends Controller
                 <p>This code will expire in 2 minutes.</p>
                 <p>If you didn't request this code, please ignore this email.</p>
                 <br>
-                <p>Best regards,<br>Viral Boast SMM Team</p>
+                <p>Best regards,<br>PIS SMM Team</p>
             ";
             
             Mail::html($emailContent, function ($message) use ($user) {
                 $message->to($user->email)
-                    ->subject('New Verification Code - Viral Boast SMM');
+                    ->subject('New Verification Code - PIS SMM');
             });
             $message = 'A new verification code has been sent to your email.';
             $contactInfo = $user->email;
@@ -594,6 +594,7 @@ class AuthController extends Controller
                 'membership' => $user->membership ? [
                     'id' => $user->membership->id,
                     'membership_name' => $user->membership->membership_name,
+                    'membership_icon' => $user->membership->membership_icon,
                     'description' => $user->membership->description,
                     'tasks_per_day' => $user->membership->tasks_per_day,
                     'max_tasks' => $user->membership->max_tasks,

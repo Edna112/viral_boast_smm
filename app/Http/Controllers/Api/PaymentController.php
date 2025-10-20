@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use App\Services\EmailNotificationService;
 
 class PaymentController extends Controller
 {
@@ -87,6 +88,16 @@ class PaymentController extends Controller
 
             $payment = Payment::create($data);
             $payment->load('user:uuid,name,email');
+
+            // Send payment received email notification
+            $emailService = new EmailNotificationService();
+            $emailService->sendPaymentNotification($payment->user, [
+                'amount' => $payment->amount,
+                'currency' => $payment->conversion_currency ?? 'USD',
+                'transaction_id' => $payment->uuid,
+                'payment_method' => $payment->platform ?? 'Unknown',
+                'balance' => 0 // Will be updated when approved
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -333,15 +344,16 @@ class PaymentController extends Controller
     }
 
     /**
-     * Approve a payment and update user account balance.
+     * Get payment approval status (User can only view, not approve)
      */
-    public function approvePayment(string $uuid): JsonResponse
+    public function getPaymentStatus(string $uuid): JsonResponse
     {
         try {
-            DB::beginTransaction();
-
-            // Find the payment
-            $payment = Payment::where('uuid', $uuid)->first();
+            $user = Auth::user();
+            
+            $payment = Payment::where('uuid', $uuid)
+                ->where('user_uuid', $user->uuid)
+                ->first();
 
             if (!$payment) {
                 return response()->json([
@@ -350,41 +362,23 @@ class PaymentController extends Controller
                 ], 404);
             }
 
-            // Check if payment is already approved
-            if ($payment->is_approved) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Payment is already approved'
-                ], 400);
-            }
-
-            // Approve the payment
-            $payment->update(['is_approved' => true]);
-
-            // Get or create user's account
-            $account = Account::getOrCreateForUser($payment->user_uuid);
-
-            // Add the payment amount to user's account balance
-            $account->addFunds($payment->amount, 'payment');
-
-            DB::commit();
-
-            $payment->load('user:uuid,name,email');
-
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'payment' => $payment,
-                    'account' => $account->getAccountSummary()
+                    'uuid' => $payment->uuid,
+                    'amount' => $payment->amount,
+                    'is_approved' => $payment->is_approved,
+                    'status' => $payment->is_approved ? 'Approved' : 'Pending Review',
+                    'created_at' => $payment->created_at,
+                    'updated_at' => $payment->updated_at
                 ],
-                'message' => 'Payment approved successfully and funds added to account'
+                'message' => 'Payment status retrieved successfully'
             ]);
 
         } catch (\Exception $e) {
-            DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error approving payment: ' . $e->getMessage()
+                'message' => 'Error retrieving payment status: ' . $e->getMessage()
             ], 500);
         }
     }

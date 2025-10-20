@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\EmailNotificationService;
 
 class AdminWithdrawalController extends Controller
 {
@@ -136,6 +137,19 @@ class AdminWithdrawalController extends Controller
 
             $withdrawal->load('user:uuid,name,email');
 
+            // Send withdrawal approved email notification
+            $emailService = new EmailNotificationService();
+            $emailService->sendWithdrawalApprovedNotification($withdrawal->user, [
+                'amount' => $withdrawal->withdrawal_amount,
+                'currency' => 'USD',
+                'transaction_id' => $withdrawal->uuid,
+                'withdrawal_method' => $withdrawal->platform ?? 'Unknown',
+                'account_details' => $withdrawal->account_details,
+                'wallet_address' => $withdrawal->wallet_address,
+                'address_type' => $withdrawal->address_type,
+                'balance' => $account->balance
+            ]);
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -150,6 +164,97 @@ class AdminWithdrawalController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error completing withdrawal request: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reject withdrawal request (Admin only)
+     */
+    public function rejectWithdrawal(Request $request, string $uuid): JsonResponse
+    {
+        try {
+            DB::beginTransaction();
+
+            $validator = Validator::make($request->all(), [
+                'reason' => 'required|string|max:500',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Find the withdrawal
+            $withdrawal = Withdrawal::where('uuid', $uuid)->first();
+
+            if (!$withdrawal) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Withdrawal request not found'
+                ], 404);
+            }
+
+            // Check if withdrawal is already completed
+            if ($withdrawal->is_completed) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Withdrawal request is already completed and cannot be rejected'
+                ], 400);
+            }
+
+            // Get user's account for balance info
+            $account = Account::getOrCreateForUser($withdrawal->user_uuid);
+
+            // Store withdrawal info before deletion
+            $withdrawalInfo = [
+                'uuid' => $withdrawal->uuid,
+                'withdrawal_amount' => $withdrawal->withdrawal_amount,
+                'user_uuid' => $withdrawal->user_uuid,
+                'platform' => $withdrawal->platform,
+                'created_at' => $withdrawal->created_at
+            ];
+
+            // Load user info for email
+            $withdrawal->load('user:uuid,name,email');
+
+            // Send rejection email notification
+            $emailService = new EmailNotificationService();
+            $emailService->sendWithdrawalRejectedNotification($withdrawal->user, [
+                'amount' => $withdrawal->withdrawal_amount,
+                'currency' => 'USD',
+                'transaction_id' => $withdrawal->uuid,
+                'withdrawal_method' => $withdrawal->platform ?? 'Unknown',
+                'account_details' => $withdrawal->account_details,
+                'wallet_address' => $withdrawal->wallet_address,
+                'address_type' => $withdrawal->address_type,
+                'reason' => $request->input('reason'),
+                'balance' => $account->balance
+            ]);
+
+            // Delete the withdrawal request
+            $withdrawal->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'rejected_withdrawal' => $withdrawalInfo,
+                    'reason' => $request->input('reason'),
+                    'account' => $account->getAccountSummary()
+                ],
+                'message' => 'Withdrawal request rejected successfully and user notified via email'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error rejecting withdrawal request: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -205,6 +310,9 @@ class AdminWithdrawalController extends Controller
             $validator = Validator::make($request->all(), [
                 'withdrawal_amount' => 'sometimes|numeric|min:1',
                 'platform' => 'nullable|string|max:100',
+                'account_details' => 'nullable|string|max:500',
+                'wallet_address' => 'nullable|string|max:500',
+                'address_type' => 'nullable|string|max:100',
                 'picture_path' => 'nullable|string|url',
             ]);
 
@@ -233,7 +341,7 @@ class AdminWithdrawalController extends Controller
                 ], 403);
             }
 
-            $data = $request->only(['withdrawal_amount', 'platform', 'picture_path']);
+            $data = $request->only(['withdrawal_amount', 'platform', 'account_details', 'wallet_address', 'address_type', 'picture_path']);
             $withdrawal->update($data);
 
             $withdrawal->load('user:uuid,name,email');

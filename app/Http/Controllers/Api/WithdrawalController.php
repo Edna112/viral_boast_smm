@@ -10,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\EmailNotificationService;
 
 class WithdrawalController extends Controller
 {
@@ -22,6 +23,9 @@ class WithdrawalController extends Controller
             $validator = Validator::make($request->all(), [
                 'withdrawal_amount' => 'required|numeric|min:1',
                 'platform' => 'nullable|string|max:100',
+                'account_details' => 'nullable|string|max:500',
+                'wallet_address' => 'nullable|string|max:500',
+                'address_type' => 'nullable|string|max:100',
                 'picture_path' => 'nullable|string|url',
             ]);
 
@@ -53,11 +57,28 @@ class WithdrawalController extends Controller
                 'user_uuid' => $user->uuid,
                 'withdrawal_amount' => $withdrawalAmount,
                 'platform' => $request->input('platform'),
+                'account_details' => $request->input('account_details'),
+                'wallet_address' => $request->input('wallet_address'),
+                'address_type' => $request->input('address_type'),
                 'picture_path' => $request->input('picture_path'),
                 'is_completed' => false
             ]);
 
             $withdrawal->load('user:uuid,name,email');
+
+            // Send withdrawal notification email
+            $emailService = new EmailNotificationService();
+            $emailService->sendWithdrawalNotification($withdrawal->user, [
+                'amount' => $withdrawal->withdrawal_amount,
+                'currency' => 'USD',
+                'transaction_id' => $withdrawal->uuid,
+                'withdrawal_method' => $withdrawal->platform ?? 'Unknown',
+                'account_details' => $withdrawal->account_details,
+                'wallet_address' => $withdrawal->wallet_address,
+                'address_type' => $withdrawal->address_type,
+                'status' => 'pending',
+                'balance' => $account->balance
+            ]);
 
             return response()->json([
                 'success' => true,

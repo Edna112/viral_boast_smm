@@ -197,7 +197,7 @@ class WebAuthController extends Controller
         Auth::login($user);
 
         return response()->json([
-            'message' => 'Registration successful! Welcome to Viral Boast.',
+            'message' => 'Registration successful! Welcome to PIS.',
             'user' => [
                 'id' => $user->id,
                 'uuid' => $user->uuid,

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\AdminAuthController;
 use App\Http\Controllers\Api\TaskSubmissionController;
 use App\Http\Controllers\Api\ComplaintController;
+use App\Http\Controllers\Api\AdminComplaintController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\AdminPaymentController;
 use App\Http\Controllers\Api\WithdrawalController;
@@ -15,7 +16,15 @@ use App\Http\Controllers\Api\AdminWithdrawalController;
 use App\Http\Controllers\Api\PaymentDetailsController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\NewAdminAuthController;
-use App\Http\Controllers\Api\AdminComplaintController;
+use App\Http\Controllers\Api\OfflineNotificationController;
+use App\Http\Controllers\Api\WebPushController;
+use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\AccountController;
+use App\Http\Controllers\Api\TaskDistributionController;
+use App\Http\Controllers\Api\TaskHistoryController;
+use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\TaskController;
+use App\Http\Controllers\Api\MembershipController;
 
 // Commented out redundant user endpoint - use /api/v1/profile instead
 // Route::get('/user', function (Request $request) {
@@ -40,6 +49,10 @@ Route::prefix('v1')->group(function () {
     
     // Development-only endpoint for testing verification codes
     Route::get('/auth/verification-code', [AuthController::class, 'getVerificationCode']);
+    
+    // Public Web Push endpoint
+    Route::get('/webpush/vapid-key', [WebPushController::class, 'getVapidKey']);
+    Route::get('/webpush/debug-config', [WebPushController::class, 'debugVapidConfig']);
     
     // Anonymous complaint submission (no authentication required)
     Route::post('/complaints/anonymous', [ComplaintController::class, 'submitAnonymousComplaint']);
@@ -111,6 +124,30 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::put('/task-submissions/{id}', [TaskSubmissionController::class, 'updateSubmission']);
     Route::delete('/task-submissions/{id}', [TaskSubmissionController::class, 'deleteSubmission']);
     
+    // Task History
+    Route::get('/task-history', [TaskHistoryController::class, 'getUserHistory']);
+    Route::get('/task-history/stats', [TaskHistoryController::class, 'getUserStats']);
+    Route::get('/task-history/{id}', [TaskHistoryController::class, 'getHistoryEntry']);
+    
+    // Enhanced Task Assignment (User level)
+    Route::post('/tasks/assign-enhanced', [TaskDistributionController::class, 'assignTasksToUserEnhanced']);
+    Route::get('/tasks/my-status', [TaskDistributionController::class, 'getUserTaskStatus']);
+    
+    // Push Notifications
+    Route::post('/subscriptions', [SubscriptionController::class, 'store']);
+    Route::get('/subscriptions', [SubscriptionController::class, 'index']);
+    Route::delete('/subscriptions', [SubscriptionController::class, 'destroy']);
+    
+    // Web Push
+    Route::post('/webpush/test', [WebPushController::class, 'sendTestNotification']);
+    Route::post('/webpush/send-to-all', [WebPushController::class, 'sendToAllUsers']);
+    
+    // Offline Notifications (for users not logged in)
+    Route::post('/notifications/send-to-all', [OfflineNotificationController::class, 'notifyAllUsers']);
+    Route::post('/notifications/urgent', [OfflineNotificationController::class, 'sendUrgentNotification']);
+    Route::post('/notifications/maintenance', [OfflineNotificationController::class, 'notifyMaintenance']);
+    Route::post('/notifications/payment', [OfflineNotificationController::class, 'notifyPaymentReceived']);
+    
     // Complaints
     Route::post('/complaints', [ComplaintController::class, 'submitComplaint']);
     Route::get('/complaints', [ComplaintController::class, 'getUserComplaints']);
@@ -123,10 +160,10 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     Route::post('/payments', [PaymentController::class, 'store']);
     Route::get('/payments/statistics', [PaymentController::class, 'statistics']);
     Route::get('/payments/{uuid}', [PaymentController::class, 'show']);
+    Route::get('/payments/{uuid}/status', [PaymentController::class, 'getPaymentStatus']);
     Route::put('/payments/{uuid}', [PaymentController::class, 'update']);
     Route::delete('/payments/{uuid}', [PaymentController::class, 'destroy']);
     Route::post('/payments/{uuid}/calculate-conversion', [PaymentController::class, 'calculateConversion']);
-    Route::post('/payments/{uuid}/approve', [PaymentController::class, 'approvePayment']);
     
     // Withdrawals
     Route::get('/withdrawals', [WithdrawalController::class, 'getUserWithdrawals']);
@@ -197,6 +234,7 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::get('/withdrawals', [AdminWithdrawalController::class, 'getAllWithdrawals']);
     Route::get('/withdrawals/{uuid}', [AdminWithdrawalController::class, 'getWithdrawalById']);
     Route::post('/withdrawals/{uuid}/complete', [AdminWithdrawalController::class, 'completeWithdrawal']);
+    Route::post('/withdrawals/{uuid}/reject', [AdminWithdrawalController::class, 'rejectWithdrawal']);
     Route::delete('/withdrawals/{uuid}', [AdminWithdrawalController::class, 'deleteWithdrawal']);
     Route::put('/withdrawals/{uuid}', [AdminWithdrawalController::class, 'editWithdrawal']);
     
@@ -215,6 +253,9 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::delete('/complaints/{id}', [AdminComplaintController::class, 'deleteComplaint']);
     Route::post('/complaints/bulk-update', [AdminComplaintController::class, 'bulkUpdateComplaints']);
     
+    // Task History Management (Admin only)
+    Route::get('/task-history', [TaskHistoryController::class, 'getAllHistory']);
+    
     // Task management (specific routes first)
     Route::get('/tasks/categories', [App\Http\Controllers\Api\TaskController::class, 'getCategories']);
     Route::get('/tasks/available', [App\Http\Controllers\Api\TaskController::class, 'getAvailableTasks']);
@@ -222,6 +263,14 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::post('/tasks/assign-daily', [App\Http\Controllers\Api\TaskController::class, 'assignDailyTasks']);
     Route::post('/tasks/reset-daily', [App\Http\Controllers\Api\TaskController::class, 'resetDailyTasks']);
     Route::post('/tasks/start-scheduler', [App\Http\Controllers\Api\TaskController::class, 'startScheduler']);
+    
+    // Enhanced Task Assignment Routes (Admin only)
+    Route::post('/tasks/assign-daily-enhanced', [TaskDistributionController::class, 'assignDailyTasksEnhanced']);
+    Route::post('/tasks/assign-to-user-enhanced', [TaskDistributionController::class, 'assignTasksToUserEnhanced']);
+    Route::post('/tasks/assign-to-new-user', [TaskDistributionController::class, 'assignTasksToNewUser']);
+    Route::get('/tasks/user-status', [TaskDistributionController::class, 'getUserTaskStatus']);
+    Route::post('/tasks/reset-daily-enhanced', [TaskDistributionController::class, 'resetDailyAssignments']);
+    Route::get('/tasks/distribution-stats-enhanced', [TaskDistributionController::class, 'getEnhancedDistributionStats']);
     
     // Task CRUD operations (parameterized routes last)
     Route::get('/tasks', [App\Http\Controllers\Api\TaskController::class, 'index']);

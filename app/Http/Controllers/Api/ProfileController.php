@@ -86,6 +86,7 @@ class ProfileController extends Controller
                         'membership' => $membership ? [
                             'id' => $membership->id,
                             'membership_name' => $membership->membership_name,
+                            'membership_icon' => $membership->membership_icon,
                             'description' => $membership->description,
                             'tasks_per_day' => $membership->tasks_per_day,
                             'max_tasks' => $membership->max_tasks,
@@ -594,12 +595,12 @@ class ProfileController extends Controller
                 <p><strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
                 <p>This code will expire in 2 minutes.</p>
                 <br>
-                <p>Best regards,<br>Viral Boast SMM Team</p>
+                <p>Best regards,<br>PIS SMM Team</p>
             ";
             
             Mail::html($emailContent, function ($message) use ($user) {
                 $message->to($user->email)
-                    ->subject('Verify Your New Email - Viral Boast SMM');
+                    ->subject('Verify Your New Email - PIS SMM');
             });
         } catch (\Exception $e) {
             // Log the error but don't fail the profile update

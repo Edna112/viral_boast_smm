@@ -8,6 +8,7 @@ use App\Models\Account;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use App\Services\EmailNotificationService;
 
 class AdminPaymentController extends Controller
 {
@@ -134,6 +135,15 @@ class AdminPaymentController extends Controller
             DB::commit();
 
             $payment->load('user:uuid,name,email');
+
+            // Send payment approved email notification
+            $emailService = new EmailNotificationService();
+            $emailService->sendPaymentApprovedNotification($payment->user, [
+                'amount' => $payment->amount,
+                'currency' => $payment->conversion_currency ?? 'USD',
+                'transaction_id' => $payment->uuid,
+                'balance' => $account->balance
+            ]);
 
             return response()->json([
                 'success' => true,

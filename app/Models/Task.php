@@ -175,19 +175,24 @@ class Task extends Model
     }
 
     /**
-     * Get available tasks for distribution
+     * Get available tasks for distribution with enhanced criteria
+     * Only tasks with task_completion_count less than or equal to their threshold should be available for assignment
      */
-    public static function getAvailableForDistribution($category = null)
+    public static function getAvailableForDistribution($category = null, $excludeTaskIds = [])
     {
         $query = self::active()
             ->where('task_status', 'active')
-            ->where(function($q) {
-                $q->where('task_distribution_count', '<', \DB::raw('threshold_value'))
-                  ->where('task_completion_count', '<', \DB::raw('threshold_value'));
-            });
+            // Task-level threshold: only tasks with completion count <= threshold
+            ->whereRaw('task_completion_count <= threshold_value')
+            // Task-level threshold: only tasks with distribution count < threshold
+            ->whereRaw('task_distribution_count < threshold_value');
 
         if ($category) {
             $query->where('category', $category);
+        }
+
+        if (!empty($excludeTaskIds)) {
+            $query->whereNotIn('id', $excludeTaskIds);
         }
 
         return $query->orderByRaw("CASE priority 

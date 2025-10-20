@@ -94,6 +94,7 @@ class UserMembership extends Model
             'membership' => [
                 'id' => $this->membership->id,
                 'membership_name' => $this->membership->membership_name,
+                'membership_icon' => $this->membership->membership_icon,
                 'description' => $this->membership->description,
                 'tasks_per_day' => $this->membership->tasks_per_day,
                 'max_tasks' => $this->membership->max_tasks,

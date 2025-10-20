@@ -290,6 +290,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get user's push notification subscriptions
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(UserSubscription::class, 'user_uuid', 'uuid');
+    }
+
+    /**
      * Check if user has active VIP membership
      */
     public function hasActiveVipMembership(): bool

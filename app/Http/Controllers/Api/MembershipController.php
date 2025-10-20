@@ -24,6 +24,7 @@ class MembershipController extends Controller
                                    return [
                                        'id' => $membership->id,
                                        'membership_name' => $membership->membership_name,
+                                       'membership_icon' => $membership->membership_icon,
                                        'description' => $membership->description,
                                        'tasks_per_day' => $membership->tasks_per_day,
                                        'max_tasks' => $membership->max_tasks,
@@ -82,6 +83,7 @@ class MembershipController extends Controller
                                        'membership' => [
                                            'id' => $membership->id,
                                            'membership_name' => $membership->membership_name,
+                                           'membership_icon' => $membership->membership_icon,
                                            'description' => $membership->description,
                                            'tasks_per_day' => $membership->tasks_per_day,
                                            'max_tasks' => $membership->max_tasks,
@@ -233,6 +235,7 @@ class MembershipController extends Controller
                     'membership' => [
                         'id' => $membership->id,
                         'membership_name' => $membership->membership_name,
+                        'membership_icon' => $membership->membership_icon,
                         'description' => $membership->description,
                         'price' => $membership->price,
                         'tasks_per_day' => $membership->tasks_per_day,
@@ -291,6 +294,7 @@ class MembershipController extends Controller
             'data' => [
                 'id' => $membership->id,
                 'membership_name' => $membership->membership_name,
+                'membership_icon' => $membership->membership_icon,
                 'description' => $membership->description,
                 'tasks_per_day' => $membership->tasks_per_day,
                 'max_tasks' => $membership->max_tasks,
@@ -319,6 +323,7 @@ class MembershipController extends Controller
                                    return [
                                        'id' => $membership->id,
                                        'membership_name' => $membership->membership_name,
+                                       'membership_icon' => $membership->membership_icon,
                                        'description' => $membership->description,
                                        'tasks_per_day' => $membership->tasks_per_day,
                                        'max_tasks' => $membership->max_tasks,
