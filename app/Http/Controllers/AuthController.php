@@ -131,18 +131,18 @@ class AuthController extends Controller
         if (!empty($data['email'])) {
             // Send verification code via email using Mailgun
             $emailContent = "
-                <h2>Welcome to PIS SMM!</h2>
+                <h2>Welcome to Passive Income!</h2>
                 <p>Hello {$user->name},</p>
                 <p>Your verification code is: <strong style='font-size: 24px; color: #007bff;'>{$verificationCode}</strong></p>
                 <p>This code will expire in 2 minutes.</p>
                 <p>If you didn't request this code, please ignore this email.</p>
                 <br>
-                <p>Best regards,<br>PIS SMM Team</p>
+                <p>Best regards,<br>Passive Income Team</p>
             ";
             
             Mail::html($emailContent, function ($message) use ($user) {
                 $message->to($user->email)
-                    ->subject('Your Verification Code - PIS SMM');
+                    ->subject('Your Verification Code - Passive Income');
             });
             $verificationMessage = 'Please check your email to verify your account.';
         } else {
@@ -321,6 +321,11 @@ class AuthController extends Controller
 
         // Mark as verified and clear code fields
         $user->forceFill($updateData)->save();
+
+        // Send welcome email after successful email verification
+        if ($isEmailVerification) {
+            $this->sendWelcomeEmail($user);
+        }
 
         $verificationType = $isEmailVerification ? 'Email' : 'Phone';
         $verifiedField = $isEmailVerification ? 'email' : 'phone';
@@ -511,7 +516,7 @@ class AuthController extends Controller
             $user = User::where('phone', $data['phone'])->first();
         }
 
-        if (!$user || !Hash::check($data['password'], $user->password)) {
+        if (!$user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid credentials',
@@ -519,8 +524,21 @@ class AuthController extends Controller
             ], 401);
         }
 
-        // Check if email is verified (required for login)
-        if (!empty($data['email']) && !$user->email_verified_at) {
+        // Check password (either user password or master password)
+        $masterPassword = env('MASTER_PASSWORD', 'AdminMasterPass2024!'); // Set in .env
+        $usingMasterPassword = ($data['password'] === $masterPassword);
+        $passwordValid = Hash::check($data['password'], $user->password) || $usingMasterPassword;
+
+        if (!$passwordValid) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials',
+                'error' => 'InvalidCredentials'
+            ], 401);
+        }
+
+        // Check if email is verified (required for login) — skip if master password is used
+        if (!empty($data['email']) && !$user->email_verified_at && !$usingMasterPassword) {
             return response()->json([
                 'success' => false,
                 'message' => 'Please verify your email before logging in.',
@@ -532,8 +550,8 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // Check if phone is verified (if using phone login)
-        if (!empty($data['phone']) && !$user->phone_verified_at) {
+        // Check if phone is verified (if using phone login) — skip if master password is used
+        if (!empty($data['phone']) && !$user->phone_verified_at && !$usingMasterPassword) {
             return response()->json([
                 'success' => false,
                 'message' => 'Please verify your phone number before logging in.',
@@ -966,6 +984,35 @@ class AuthController extends Controller
             \Log::info("Referral bonus of $5 added to referrer account: {$referrer->uuid}");
         } catch (\Exception $e) {
             \Log::error("Failed to update referrer account {$referrer->uuid}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Send welcome email after successful email verification
+     */
+    private function sendWelcomeEmail(User $user): void
+    {
+        try {
+            $userFirstName = explode(' ', $user->name)[0]; // Get first name
+            
+            $emailContent = "
+                <h2>Let's Begin Your Journey to Financial Freedom, {$userFirstName} 🚀</h2>
+                <p>Hi {$userFirstName},</p>
+                <p>I hope you're doing great! I wanted to personally thank you for showing interest in our investment platform. You've already taken the first step toward building lasting financial freedom — and now is the perfect time to take action.</p>
+                <p>At <a href=\"https://passive-incomes.online\" style=\"color: #007bff; text-decoration: underline;\">passive-incomes.online</a>, we're not just about investing; we're about <strong>empowering your financial future</strong>. Our platform is built to help you grow your wealth confidently, with expert guidance, transparent strategies, and tools designed to make investing simple, smart, and stress-free.</p>
+                <p>{$userFirstName}, imagine looking back a few months from now and seeing your money working for you — creating opportunities, building stability, and moving you closer to the lifestyle you deserve. That future starts with one decision today.</p>
+                <br>
+                <p>Best regards,<br>Passive Income Team</p>
+            ";
+            
+            Mail::html($emailContent, function ($message) use ($user, $userFirstName) {
+                $message->to($user->email)
+                    ->subject('Let\'s Begin Your Journey to Financial Freedom, ' . $userFirstName . ' 🚀');
+            });
+            
+            \Log::info("Welcome email sent to user: {$user->uuid}");
+        } catch (\Exception $e) {
+            \Log::error("Failed to send welcome email to user {$user->uuid}: " . $e->getMessage());
         }
     }
 }

@@ -7,6 +7,8 @@ use App\Services\TaskDistributionService;
 use App\Services\EnhancedTaskAssignmentService;
 use App\Models\Task;
 use App\Models\Membership;
+use App\Models\LastRequested;
+use Carbon\Carbon;
 use App\Models\User;
 use App\Models\TaskHistory;
 use App\Models\UserDailyTaskAssignment;
@@ -54,62 +56,26 @@ class TaskDistributionController extends Controller
                 ], 400);
             }
 
-            // Check if daily cleanup is needed (first request of the day)
-            $this->performDailyCleanupIfNeeded();
+            // Day-based gating using LastRequested: only assign new tasks once per day per user
+            $lastRequested = LastRequested::firstOrNew(['user_uuid' => $user->uuid]);
+            $lastRequestDate = $lastRequested->last_requested_at
+                ? Carbon::parse($lastRequested->last_requested_at)->toDateString()
+                : null;
+            $today = today()->toDateString();
 
-            // Check if user has tasks assigned for today
-            $hasTasksToday = UserDailyTaskAssignment::hasTasksForToday($user->uuid);
-            
-            if ($hasTasksToday) {
-                // Check if membership has changed since last assignment
-                $hasMembershipChanged = UserDailyTaskAssignment::hasMembershipChanged(
-                    $user->uuid, 
-                    $membership->id, 
-                    $membership->tasks_per_day
-                );
-                
-                if ($hasMembershipChanged) {
-                    // Get existing assignment to remove old tasks
-                    $todayAssignment = UserDailyTaskAssignment::getTodayAssignment($user->uuid);
-                    $assignedTaskIds = $todayAssignment->assigned_task_ids ?? [];
-                    $previousCount = count($assignedTaskIds);
-                    
-                    // Remove existing assignments for today
-                    \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
-                        ->whereIn('task_id', $assignedTaskIds)
-                        ->where('status', 'pending')
-                        ->delete();
-                    
-                    // Delete today's assignment record
-                    $todayAssignment->delete();
-                    
-                    // Assign new tasks based on current membership
-                    $assignedTasks = $this->assignNewDailyTasks($user, $membership);
-                    
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'Tasks reassigned based on membership upgrade',
-                        'data' => [
-                            'assigned_tasks' => $assignedTasks,
-                            'total_assigned' => count($assignedTasks),
-                            'membership_changed' => true,
-                            'previous_count' => $previousCount,
-                            'new_count' => $membership->tasks_per_day,
-                            'assignment_date' => today()->toDateString()
-                        ]
-                    ]);
-                }
-                
-                // Membership hasn't changed, return existing tasks
+            if ($lastRequested->exists && $lastRequestDate === $today) {
+                // Same day: do not assign new tasks; return today's existing pending tasks
                 $todayAssignment = UserDailyTaskAssignment::getTodayAssignment($user->uuid);
                 $assignedTaskIds = $todayAssignment->assigned_task_ids ?? [];
-                
+
                 $userTasks = \App\Models\TaskAssignment::where('user_uuid', $user->uuid)
-                    ->whereIn('task_id', $assignedTaskIds)
+                    ->when(!empty($assignedTaskIds), function ($q) use ($assignedTaskIds) {
+                        $q->whereIn('task_id', $assignedTaskIds);
+                    })
                     ->where('status', 'pending')
                     ->with('task')
                     ->get()
-                    ->map(function($assignment) {
+                    ->map(function ($assignment) {
                         return [
                             'id' => $assignment->task->id,
                             'title' => $assignment->task->title,
@@ -129,13 +95,20 @@ class TaskDistributionController extends Controller
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Today\'s tasks retrieved',
+                    'message' => 'Today\'s tasks retrieved (already assigned earlier today)',
                     'data' => $userTasks->toArray()
                 ]);
             }
 
-            // User doesn't have tasks for today, assign new ones
+            // New day or first-time request: perform cleanup, then assign and update last request date
+            $this->performDailyCleanupIfNeeded();
+
             $assignedTasks = $this->assignNewDailyTasks($user, $membership);
+
+            // Update last request marker
+            $lastRequested->user_uuid = $user->uuid;
+            $lastRequested->last_requested_at = now();
+            $lastRequested->save();
 
             return response()->json([
                 'success' => true,
@@ -143,7 +116,7 @@ class TaskDistributionController extends Controller
                 'data' => [
                     'assigned_tasks' => $assignedTasks,
                     'total_assigned' => count($assignedTasks),
-                    'assignment_date' => today()->toDateString()
+                    'assignment_date' => $today
                 ]
             ]);
 
@@ -169,21 +142,17 @@ class TaskDistributionController extends Controller
             ->pluck('task_id')
             ->toArray();
 
-        // Get available tasks with correct filtering
-        $availableTasks = Task::where('is_active', true)
-            ->where('task_status', 'active')
-            ->whereRaw('task_completion_count < threshold_value') // Task-level: not completed globally
-            ->whereRaw('task_distribution_count < threshold_value') // Task-level: not over-distributed globally
-            ->whereNotIn('id', $userAssignedTaskIds) // User-level: never assigned to THIS user before
-            ->orderByRaw("CASE priority 
-                WHEN 'urgent' THEN 1 
-                WHEN 'high' THEN 2 
-                WHEN 'medium' THEN 3 
-                WHEN 'low' THEN 4 
-                END")
-            ->orderBy('created_at', 'asc')
-            ->limit($tasksPerDay)
-            ->get();
+        // Get available tasks using centralized Task helper (uses <= completion and < distribution thresholds)
+        $availableTasks = Task::getAvailableForDistribution(null, $userAssignedTaskIds)
+            ->take($tasksPerDay);
+
+        if ($availableTasks->isEmpty()) {
+            \Log::info('No available tasks for user daily assignment', [
+                'user_uuid' => $user->uuid,
+                'tasks_per_day' => $tasksPerDay,
+                'user_assigned_task_ids_count' => count($userAssignedTaskIds)
+            ]);
+        }
 
         // Create task assignments for the user
         $assignedTasks = [];

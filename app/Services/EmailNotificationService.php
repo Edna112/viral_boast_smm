@@ -30,6 +30,7 @@ class EmailNotificationService
             $message .= "- Payment Method: {$paymentMethod}\n";
             $message .= "- Date: {$date}\n";
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n\n";
+            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
             $message .= "Thank you for using PIS!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
@@ -101,7 +102,8 @@ class EmailNotificationService
             } elseif ($status === 'rejected') {
                 $message .= "Unfortunately, your withdrawal request could not be processed. Please contact support for more information.\n\n";
             }
-            
+
+            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
             $message .= "Thank you for using PIS!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
@@ -149,6 +151,7 @@ class EmailNotificationService
             $message .= "- Approval Date: {$date}\n";
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n\n";
             $message .= "Your account balance has been updated and the funds are now available for use.\n\n";
+            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
             $message .= "Thank you for using PIS!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
@@ -210,6 +213,7 @@ class EmailNotificationService
             $message .= "- Approval Date: {$date}\n";
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n\n";
             $message .= "The funds have been deducted from your account and will be transferred to your specified withdrawal method shortly.\n\n";
+            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
             $message .= "Thank you for using PIS!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
@@ -273,6 +277,7 @@ class EmailNotificationService
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n";
             $message .= "- Reason: {$reason}\n\n";
             $message .= "The funds have been returned to your account balance. If you have any questions about this decision, please contact our support team.\n\n";
+            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
             $message .= "Thank you for using PIS!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 

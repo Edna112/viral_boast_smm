@@ -219,6 +219,8 @@ Route::prefix('v1/admin')->middleware('auth:sanctum')->group(function () {
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/users/stats', [UserController::class, 'stats']);
     Route::get('/users/{uuid}', [UserController::class, 'show']);
+    Route::post('/users', [UserController::class, 'store']); // Add new user (Admin only)
+    Route::post('/users/login-as', [UserController::class, 'loginAsUser']); // Admin login as user
     Route::put('/users/{uuid}', [UserController::class, 'update']);
     Route::post('/users/{uuid}/deactivate', [UserController::class, 'deactivate']);
     Route::post('/users/{uuid}/activate', [UserController::class, 'activate']);
