@@ -1002,7 +1002,12 @@ class AuthController extends Controller
                 <p>At <a href=\"https://passive-incomes.online\" style=\"color: #007bff; text-decoration: underline;\">passive-incomes.online</a>, we're not just about investing; we're about <strong>empowering your financial future</strong>. Our platform is built to help you grow your wealth confidently, with expert guidance, transparent strategies, and tools designed to make investing simple, smart, and stress-free.</p>
                 <p>{$userFirstName}, imagine looking back a few months from now and seeing your money working for you — creating opportunities, building stability, and moving you closer to the lifestyle you deserve. That future starts with one decision today.</p>
                 <br>
-                <p>Best regards,<br>Passive Income Team</p>
+                <p>Let's kickstart your journey together. I'd love to schedule a quick call this week to help you set up your account and walk you through how our platform can make your goals a reality.</p>
+                <p>👉 <b> When would be a good time for us to connect?</p>
+                <p>You can write our support via the live chat on the platform and you'll get instant assistance or send us an email at <a href=\"mailto:support@cryptoexpertss.net\" style=\"color: #007bff; text-decoration: underline;\">support@cryptoexpertss.net</a>.</p> </b>
+                <p>Your financial freedom is just one step away — and we'll be with you every step of the way.</p>
+                <br>
+                <p>Warm regards,<br>Passive Income Team</p>
             ";
             
             Mail::html($emailContent, function ($message) use ($user, $userFirstName) {
