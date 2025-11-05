@@ -21,7 +21,7 @@ class EmailNotificationService
             $balance = $paymentData['balance'] ?? 0;
             $date = now()->format('Y-m-d H:i:s');
 
-            $subject = 'Payment Received - PIS';
+            $subject = 'Payment Received - viralboast';
             $message = "Hello {$user->name},\n\n";
             $message .= "Your payment has been successfully received.\n\n";
             $message .= "Payment Details:\n";
@@ -30,8 +30,8 @@ class EmailNotificationService
             $message .= "- Payment Method: {$paymentMethod}\n";
             $message .= "- Date: {$date}\n";
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n\n";
-            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
-            $message .= "Thank you for using PIS!\n\n";
+            $message .= "Login to check your balance here: https://viralboast.com/login\n\n";
+            $message .= "Thank you for using viralboast!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
             Mail::raw($message, function ($mail) use ($user, $subject) {
@@ -103,8 +103,8 @@ class EmailNotificationService
                 $message .= "Unfortunately, your withdrawal request could not be processed. Please contact support for more information.\n\n";
             }
 
-            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
-            $message .= "Thank you for using PIS!\n\n";
+            $message .= "Login to check your balance here: https://viralboast.com/login\n\n";
+            $message .= "Thank you for using viralboast!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
             Mail::raw($message, function ($mail) use ($user, $subject) {
@@ -151,8 +151,8 @@ class EmailNotificationService
             $message .= "- Approval Date: {$date}\n";
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n\n";
             $message .= "Your account balance has been updated and the funds are now available for use.\n\n";
-            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
-            $message .= "Thank you for using PIS!\n\n";
+            $message .= "Login to check your balance here: https://viralboast.com/login\n\n";
+            $message .= "Thank you for using viralboast!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
             Mail::raw($message, function ($mail) use ($user, $subject) {
@@ -193,7 +193,7 @@ class EmailNotificationService
             $balance = $withdrawalData['balance'] ?? 0;
             $date = now()->format('Y-m-d H:i:s');
 
-            $subject = 'Withdrawal Approved - PIS';
+            $subject = 'Withdrawal Approved - viralboast';
             
             $message = "Hello {$user->name},\n\n";
             $message .= "Great news! Your withdrawal request has been approved.\n\n";
@@ -213,8 +213,8 @@ class EmailNotificationService
             $message .= "- Approval Date: {$date}\n";
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n\n";
             $message .= "The funds have been deducted from your account and will be transferred to your specified withdrawal method shortly.\n\n";
-            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
-            $message .= "Thank you for using PIS!\n\n";
+            $message .= "Login to check your balance here: https://viralboast.com/login\n\n";
+            $message .= "Thank you for using viralboast!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
             Mail::raw($message, function ($mail) use ($user, $subject) {
@@ -256,7 +256,7 @@ class EmailNotificationService
             $balance = $withdrawalData['balance'] ?? 0;
             $date = now()->format('Y-m-d H:i:s');
 
-            $subject = 'Withdrawal Rejected - PIS';
+            $subject = 'Withdrawal Rejected - viralboast';
             
             $message = "Hello {$user->name},\n\n";
             $message .= "Unfortunately, your withdrawal request has been rejected.\n\n";
@@ -277,8 +277,8 @@ class EmailNotificationService
             $message .= "- Current Balance: {$currency} " . number_format($balance, 2) . "\n";
             $message .= "- Reason: {$reason}\n\n";
             $message .= "The funds have been returned to your account balance. If you have any questions about this decision, please contact our support team.\n\n";
-            $message .= "Login to check your balance here: https://passive-incomes.online/login\n\n";
-            $message .= "Thank you for using PIS!\n\n";
+            $message .= "Login to check your balance here: https://viralboast.com/login\n\n";
+            $message .= "Thank you for using viralboast!\n\n";
             $message .= "This is an automated message. Please do not reply to this email.";
 
             Mail::raw($message, function ($mail) use ($user, $subject) {

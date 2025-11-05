@@ -72,6 +72,8 @@ class AdminSeeder extends Seeder
                 'role' => 'admin',
                 'isActive' => true,
                 'lastLogin' => now(),
+                'email_verified_at' => now(), // Auto-verify admin email
+                'phone_verified_at' => now(), // Auto-verify admin phone
             ]
         );
 
@@ -90,6 +92,8 @@ class AdminSeeder extends Seeder
                 'role' => 'admin',
                 'isActive' => true,
                 'lastLogin' => now(),
+                'email_verified_at' => now(), // Auto-verify super admin email
+                'phone_verified_at' => now(), // Auto-verify super admin phone
             ]
         );
 

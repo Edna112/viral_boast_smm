@@ -3,6 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
@@ -11,6 +12,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Disable foreign key constraints temporarily (MySQL specific)
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        
         // Simply drop and recreate the tasks table
         Schema::dropIfExists('tasks');
         
@@ -42,6 +46,9 @@ return new class extends Migration
             $table->index('priority');
             $table->index('created_at');
         });
+        
+        // Re-enable foreign key constraints (MySQL specific)
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }
 
     /**
@@ -49,6 +56,9 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Disable foreign key constraints temporarily (MySQL specific)
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        
         Schema::dropIfExists('tasks');
         
         // Recreate the original table structure
@@ -80,5 +90,8 @@ return new class extends Migration
             $table->integer('distribution_threshold')->default(100)->after('task_distribution_count');
             $table->integer('completion_threshold')->default(100)->after('distribution_threshold');
         });
+        
+        // Re-enable foreign key constraints (MySQL specific)
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }
 };

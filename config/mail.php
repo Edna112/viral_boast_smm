@@ -115,7 +115,7 @@ return [
 
     'from' => [
         'address' => env('MAIL_FROM_ADDRESS', 'chenwieddy@gmail.com'),
-        'name' => env('MAIL_FROM_NAME', 'Passive Income'),
+        'name' => env('MAIL_FROM_NAME', 'Viral Boast'),
     ],
 
 ];

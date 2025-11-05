@@ -17,14 +17,19 @@ return new class extends Migration
             $foreignKeys = DB::select("
                 SELECT CONSTRAINT_NAME 
                 FROM information_schema.KEY_COLUMN_USAGE 
-                WHERE TABLE_NAME = 'users' 
+                WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'users' 
                 AND CONSTRAINT_NAME LIKE '%membership_level%'
             ");
             
+            // Drop foreign keys using raw SQL to avoid Laravel's naming issues
             foreach ($foreignKeys as $foreignKey) {
-                $table->dropForeign([$foreignKey->CONSTRAINT_NAME]);
+                DB::statement("ALTER TABLE `users` DROP FOREIGN KEY `{$foreignKey->CONSTRAINT_NAME}`");
             }
-            
+        });
+        
+        // Now change the column type and add the foreign key
+        Schema::table('users', function (Blueprint $table) {
             // Change the column type from char(36) to unsignedBigInteger
             $table->unsignedBigInteger('membership_level')->nullable()->change();
             

@@ -84,13 +84,16 @@ class User extends Authenticatable
         'show_email',
         'show_phone',
         'show_activity',
-        'email_notifications',
-        'sms_notifications',
-        'membership_level',
-        'role',
-        'isActive',
-        'lastLogin',
-    ];
+            'email_notifications',
+            'sms_notifications',
+            'two_factor_enabled',
+            'two_factor_secret',
+            'two_factor_recovery_codes',
+            'membership_level',
+            'role',
+            'isActive',
+            'lastLogin',
+        ];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -131,6 +134,7 @@ class User extends Authenticatable
             'show_activity' => 'boolean',
             'email_notifications' => 'boolean',
             'sms_notifications' => 'boolean',
+            'two_factor_enabled' => 'boolean',
             'isActive' => 'boolean',
             'lastLogin' => 'datetime',
             'assigned_tasks' => 'array',

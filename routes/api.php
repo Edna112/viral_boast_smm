@@ -50,6 +50,14 @@ Route::prefix('v1')->group(function () {
     // Development-only endpoint for testing verification codes
     Route::get('/auth/verification-code', [AuthController::class, 'getVerificationCode']);
     
+    // 2FA endpoints (for frontend compatibility)
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/auth/2fa/generate', [App\Http\Controllers\Api\SecurityController::class, 'generate2FA']);
+        Route::post('/auth/2fa/verify-setup', [App\Http\Controllers\Api\SecurityController::class, 'enable2FA']);
+        Route::post('/auth/2fa/disable', [App\Http\Controllers\Api\SecurityController::class, 'disable2FA']);
+        Route::get('/auth/2fa/status', [App\Http\Controllers\Api\SecurityController::class, 'get2FAStatus']);
+    });
+    
     // Public Web Push endpoint
     Route::get('/webpush/vapid-key', [WebPushController::class, 'getVapidKey']);
     Route::get('/webpush/debug-config', [WebPushController::class, 'debugVapidConfig']);
@@ -112,6 +120,14 @@ Route::prefix('v1')->middleware('auth:sanctum')->group(function () {
     // Privacy settings
     Route::get('/profile/privacy', [ProfileController::class, 'getPrivacySettings']);
     Route::put('/profile/privacy', [ProfileController::class, 'updatePrivacySettings']);
+    
+    // Security settings (2FA)
+    Route::get('/security/2fa/status', [App\Http\Controllers\Api\SecurityController::class, 'get2FAStatus']);
+    Route::post('/security/2fa/generate', [App\Http\Controllers\Api\SecurityController::class, 'generate2FA']);
+    Route::post('/security/2fa/enable', [App\Http\Controllers\Api\SecurityController::class, 'enable2FA']);
+    Route::post('/security/2fa/disable', [App\Http\Controllers\Api\SecurityController::class, 'disable2FA']);
+    Route::post('/security/2fa/verify', [App\Http\Controllers\Api\SecurityController::class, 'verify2FACode']);
+    Route::post('/security/2fa/recovery-codes', [App\Http\Controllers\Api\SecurityController::class, 'generateNewRecoveryCodes']);
     
     // Account management
     Route::post('/profile/deactivate', [ProfileController::class, 'deactivateAccount']);
